@@ -1,0 +1,14 @@
+Parkinson's Disease Voice Measurement Features
+==============================================
+Source: UCI Machine Learning Repository
+
+Features (22 total):
+1. MDVP:Fo(Hz) - Average vocal fundamental frequency
+2. MDVP:Fhi(Hz) - Maximum vocal fundamental frequency
+3. MDVP:Flo(Hz) - Minimum vocal fundamental frequency
+4-8. Jitter measures (variation in fundamental frequency)
+9-14. Shimmer measures (variation in amplitude)
+15-16. Noise ratios (NHR, HNR)
+17-22. Nonlinear measures (RPDE, DFA, spread1, spread2, D2, PPE)
+
+Target: status (0=Healthy, 1=Parkinson's)
