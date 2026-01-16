@@ -1,0 +1,164 @@
+name: Score Submission
+
+on:
+  pull_request:
+    paths:
+      - 'submissions/**/*.csv'
+
+permissions:
+  pull-requests: write
+  contents: write
+
+jobs:
+  score:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas scikit-learn numpy
+        
+    - name: Find submission file
+      id: find_submission
+      run: |
+        # Find the new/modified CSV file in the PR
+        CSV_FILE=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep 'submissions/.*\.csv$' | head -n 1)
+        
+        if [ -z "$CSV_FILE" ]; then
+          echo "❌ No CSV file found in submissions folder"
+          exit 1
+        fi
+        
+        echo "file=$CSV_FILE" >> $GITHUB_OUTPUT
+        echo "✅ Found submission: $CSV_FILE"
+        
+        # Extract team name
+        TEAM_NAME=$(basename "$CSV_FILE" .csv)
+        echo "team_name=$TEAM_NAME" >> $GITHUB_OUTPUT
+        
+    - name: Validate and score submission
+      id: score
+      run: |
+        CSV_FILE="${{ steps.find_submission.outputs.file }}"
+        
+        # Run scoring script
+        SCORE=$(python scoring_script.py "$CSV_FILE" 2>&1 | head -n 1)
+        
+        if [ $? -ne 0 ]; then
+          echo "❌ Scoring failed"
+          echo "error=true" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+        
+        echo "score=$SCORE" >> $GITHUB_OUTPUT
+        echo "✅ Score: $SCORE"
+        
+        # Get verbose output
+        REPORT=$(python scoring_script.py "$CSV_FILE" --verbose 2>&1)
+        
+        # Save report (escape newlines for GitHub Actions)
+        {
+          echo 'report<<EOF'
+          echo "$REPORT"
+          echo EOF
+        } >> $GITHUB_OUTPUT
+        
+    - name: Comment on PR with score
+      if: steps.score.outputs.error != 'true'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const score = '${{ steps.score.outputs.score }}';
+          const teamName = '${{ steps.find_submission.outputs.team_name }}';
+          const report = `${{ steps.score.outputs.report }}`;
+          
+          const body = `## 🎯 Submission Score
+          
+          **Team:** \`${teamName}\`
+          **Macro F1-Score:** \`${score}\`
+          
+          <details>
+          <summary>📊 Detailed Report</summary>
+          
+          \`\`\`
+          ${report}
+          \`\`\`
+          
+          </details>
+          
+          ---
+          
+          ✅ Your submission has been validated and scored!
+          
+          **Next Steps:**
+          1. Once merged, your score will appear on the [live leaderboard](https://AiIkram.github.io/gnn-parkinsons-challenge/leaderboard.html)
+          2. Create a \`${teamName}_metadata.json\` file with model details (optional but recommended)
+          
+          **Metadata Format:**
+          \`\`\`json
+          {
+            "score": ${score},
+            "model": "Your Model Name",
+            "date": "${new Date().toISOString().split('T')[0]}",
+            "description": "Brief description of your approach"
+          }
+          \`\`\`
+          `;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: body
+          });
+          
+    - name: Comment on PR if scoring failed
+      if: steps.score.outputs.error == 'true'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const teamName = '${{ steps.find_submission.outputs.team_name }}';
+          
+          const body = `## ❌ Submission Validation Failed
+          
+          **Team:** \`${teamName}\`
+          
+          Your submission could not be validated. Please check:
+          
+          1. ✅ CSV file has exactly 39 rows
+          2. ✅ Required columns: \`node_id\`, \`prediction\`
+          3. ✅ \`node_id\` values are 0-38 (no duplicates)
+          4. ✅ \`prediction\` values are 0 or 1
+          
+          **Example Format:**
+          \`\`\`csv
+          node_id,prediction
+          0,1
+          1,0
+          2,1
+          ...
+          38,0
+          \`\`\`
+          
+          Please fix the issues and update your PR.
+          `;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: body
+          });
+          
+          core.setFailed('Submission validation failed');

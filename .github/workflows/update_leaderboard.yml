@@ -5,32 +5,56 @@ on:
     branches: [main]
     paths:
       - 'submissions/**'
-  workflow_dispatch:
+  workflow_dispatch:  # Allow manual trigger
+
+permissions:
+  contents: write
 
 jobs:
   update:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch all history
     
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.8'
+        python-version: '3.10'
     
-    - name: Install dependencies
+    - name: Update leaderboard
       run: |
-        pip install pandas numpy
+        echo "🔄 Updating leaderboard..."
+        python update_leaderboard.py
     
-    - name: Update leaderboard data
+    - name: Check for changes
+      id: check_changes
       run: |
-        python scripts/update_leaderboard_json.py
+        if git diff --quiet leaderboard.json; then
+          echo "changed=false" >> $GITHUB_OUTPUT
+          echo "ℹ️  No changes to leaderboard"
+        else
+          echo "changed=true" >> $GITHUB_OUTPUT
+          echo "✅ Leaderboard updated"
+        fi
     
-    - name: Commit changes
+    - name: Commit and push changes
+      if: steps.check_changes.outputs.changed == 'true'
       run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add docs/leaderboard_data.json
-        git diff --quiet && git diff --staged --quiet || git commit -m "Auto-update leaderboard [skip ci]"
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        
+        git add leaderboard.json
+        git commit -m " Auto-update leaderboard [skip ci]"
         git push
+        
+        echo "✅ Leaderboard pushed to GitHub"
+    
+    - name: Deploy to GitHub Pages
+      if: steps.check_changes.outputs.changed == 'true'
+      run: |
+        echo "🚀 GitHub Pages will auto-deploy the updated leaderboard"
+        echo "   View at: https://AiIkram.github.io/gnn-parkinsons-challenge/leaderboard.html"
