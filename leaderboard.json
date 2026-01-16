@@ -1,0 +1,19 @@
+{
+  "last_updated": "2025-01-16T00:00:00Z",
+  "submissions": [
+    {
+      "rank": 1,
+      "team_name": "baseline_gcn",
+      "score": 0.7654,
+      "model": "GCN",
+      "date": "2025-01-15"
+    },
+    {
+      "rank": 2,
+      "team_name": "baseline_gat",
+      "score": 0.7521,
+      "model": "GAT",
+      "date": "2025-01-15"
+    }
+  ]
+}
