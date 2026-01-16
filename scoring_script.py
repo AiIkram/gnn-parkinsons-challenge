@@ -1,197 +1,210 @@
 #!/usr/bin/env python3
 """
-Scoring script for GNN Parkinson's Challenge
-Evaluates submission files against ground truth labels
+GNN Parkinson's Challenge - Scoring Script
+Evaluates submissions and updates the leaderboard
 """
 
 import pandas as pd
-import numpy as np
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-import argparse
-import sys
-import os
 import pickle
+import sys
+import json
+from pathlib import Path
+from datetime import datetime
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, roc_auc_score
 
 def load_ground_truth():
-    """Load ground truth labels from pickle or CSV"""
-    
-    # Try multiple possible locations
+    """Load ground truth labels from data directory"""
+    # Try multiple possible paths
     possible_paths = [
-        'data/test_labels.csv',
-        'data/test_labels.pkl',
-        '../data/test_labels.csv',
-        '../data/test_labels.pkl',
+        Path('data/test_labels.pkl'),
+        Path('../data/test_labels.pkl'),
+        Path('../../data/test_labels.pkl'),
     ]
     
     for path in possible_paths:
-        if os.path.exists(path):
-            try:
-                if path.endswith('.csv'):
-                    df = pd.read_csv(path)
-                    print(f"✓ Loaded ground truth from {path}")
-                    return df
-                elif path.endswith('.pkl'):
-                    with open(path, 'rb') as f:
-                        data = pickle.load(f)
-                    
-                    # Convert to DataFrame
-                    if isinstance(data, dict):
-                        df = pd.DataFrame(list(data.items()), columns=['node_id', 'label'])
-                    elif isinstance(data, pd.DataFrame):
-                        df = data
-                    else:
-                        # Assume array of labels
-                        df = pd.DataFrame({
-                            'node_id': range(len(data)),
-                            'label': data
-                        })
-                    
-                    # Ensure node_ids are 0-38
-                    if len(df) != 39:
-                        if len(df) > 39:
-                            df = df.iloc[:39]
-                        df['node_id'] = range(39)
-                    
-                    print(f"✓ Loaded ground truth from {path}")
-                    return df
-            except Exception as e:
-                continue
+        if path.exists():
+            print(f"✓ Found ground truth at: {path}")
+            with open(path, 'rb') as f:
+                labels = pickle.load(f)
+            
+            # Convert to DataFrame if needed
+            if isinstance(labels, dict):
+                df = pd.DataFrame(list(labels.items()), columns=['node_id', 'label'])
+            elif isinstance(labels, pd.DataFrame):
+                df = labels
+            elif isinstance(labels, pd.Series):
+                df = pd.DataFrame({'node_id': labels.index, 'label': labels.values})
+            else:
+                df = pd.DataFrame({'node_id': range(len(labels)), 'label': labels})
+            
+            return df.sort_values('node_id').reset_index(drop=True)
     
+    # If not found, return None
+    print("❌ Error: Ground truth labels not found")
+    print(f"\n📝 Note for challenge organizers:")
+    print(f"   Ground truth should be in: data/test_labels.pkl")
+    print(f"   Current working directory: {Path.cwd()}")
     return None
-
 
 def validate_submission(submission_df):
     """Validate submission format"""
-    
     errors = []
     
-    # Check required columns
-    if 'node_id' not in submission_df.columns:
-        errors.append("Missing 'node_id' column")
-    if 'prediction' not in submission_df.columns:
-        errors.append("Missing 'prediction' column")
+    # Check columns
+    required_cols = ['node_id', 'prediction']
+    if not all(col in submission_df.columns for col in required_cols):
+        errors.append(f"Missing required columns. Expected: {required_cols}, Got: {list(submission_df.columns)}")
     
-    if errors:
-        return False, errors
+    # Check for 39 nodes (0-38)
+    if len(submission_df) != 39:
+        errors.append(f"Expected 39 predictions, got {len(submission_df)}")
     
-    # Check node_id range
-    node_ids = submission_df['node_id'].values
-    if node_ids.min() < 0 or node_ids.max() > 38:
-        errors.append(f"node_id values must be between 0 and 38 (got {node_ids.min()} to {node_ids.max()})")
+    # Check node IDs
+    expected_ids = set(range(39))
+    actual_ids = set(submission_df['node_id'].values)
+    if actual_ids != expected_ids:
+        errors.append(f"node_id values must be 0-38. Missing: {expected_ids - actual_ids}, Extra: {actual_ids - expected_ids}")
     
-    # Check for 39 unique nodes
-    if len(node_ids) != 39:
-        errors.append(f"Expected 39 predictions, got {len(node_ids)}")
+    # Check predictions are binary
+    if not all(submission_df['prediction'].isin([0, 1])):
+        errors.append("All predictions must be 0 or 1")
     
-    if len(set(node_ids)) != 39:
-        errors.append(f"node_id values must be unique (got {len(set(node_ids))} unique values)")
-    
-    # Check predictions are 0 or 1
-    predictions = submission_df['prediction'].values
-    if not all(p in [0, 1] for p in predictions):
-        errors.append("prediction values must be 0 or 1")
-    
-    return len(errors) == 0, errors
+    return errors
 
+def calculate_metrics(y_true, y_pred):
+    """Calculate all evaluation metrics"""
+    metrics = {
+        'accuracy': accuracy_score(y_true, y_pred),
+        'f1_score': f1_score(y_true, y_pred),
+        'precision': precision_score(y_true, y_pred),
+        'recall': recall_score(y_true, y_pred),
+    }
+    
+    # Try to calculate AUC if probabilities are available
+    try:
+        metrics['auc_roc'] = roc_auc_score(y_true, y_pred)
+    except:
+        metrics['auc_roc'] = None
+    
+    return metrics
 
-def score_submission(submission_path, verbose=False):
-    """Score a submission file"""
+def update_leaderboard(submission_name, metrics, submission_file):
+    """Update leaderboard JSON file"""
+    leaderboard_file = Path('leaderboard.json')
+    
+    # Load existing leaderboard
+    if leaderboard_file.exists():
+        with open(leaderboard_file, 'r') as f:
+            leaderboard = json.load(f)
+    else:
+        leaderboard = {'submissions': []}
+    
+    # Create new entry with all required fields
+    entry = {
+        'name': submission_name,
+        'date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'file': str(submission_file),
+        'accuracy': float(metrics['accuracy']),
+        'f1_score': float(metrics['f1_score']),
+        'precision': float(metrics['precision']),
+        'recall': float(metrics['recall'])
+    }
+    
+    # Add AUC if available
+    if metrics.get('auc_roc') is not None:
+        entry['auc_roc'] = float(metrics['auc_roc'])
+    
+    # Add or update entry
+    existing_idx = None
+    for i, sub in enumerate(leaderboard['submissions']):
+        if sub['name'] == submission_name:
+            existing_idx = i
+            break
+    
+    if existing_idx is not None:
+        leaderboard['submissions'][existing_idx] = entry
+    else:
+        leaderboard['submissions'].append(entry)
+    
+    # Sort by F1 score
+    leaderboard['submissions'].sort(key=lambda x: x['f1_score'], reverse=True)
+    
+    # Save updated leaderboard
+    with open(leaderboard_file, 'w') as f:
+        json.dump(leaderboard, f, indent=2)
+    
+    print(f"\n✓ Leaderboard updated: {leaderboard_file}")
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python scoring_script.py <submission_file> [--verbose] [--name <submission_name>]")
+        sys.exit(1)
+    
+    submission_file = Path(sys.argv[1])
+    verbose = '--verbose' in sys.argv
+    
+    # Get submission name
+    if '--name' in sys.argv:
+        name_idx = sys.argv.index('--name') + 1
+        submission_name = sys.argv[name_idx] if name_idx < len(sys.argv) else submission_file.stem
+    else:
+        submission_name = submission_file.stem
     
     # Load submission
     try:
-        submission_df = pd.read_csv(submission_path)
+        submission_df = pd.read_csv(submission_file)
         if verbose:
-            print(f"\n📄 Loaded submission: {submission_path}")
+            print(f"\n📄 Loaded submission: {submission_file}")
             print(f"   Shape: {submission_df.shape}")
-    except FileNotFoundError:
-        print(f"❌ Error: File not found: {submission_path}")
-        return None
     except Exception as e:
         print(f"❌ Error loading submission: {e}")
-        return None
+        sys.exit(1)
     
-    # Validate submission format
-    is_valid, errors = validate_submission(submission_df)
-    if not is_valid:
-        print(f"❌ Error: Invalid submission format")
+    # Validate format
+    errors = validate_submission(submission_df)
+    if errors:
+        print("❌ Submission validation failed:")
         for error in errors:
             print(f"   - {error}")
-        return None
+        sys.exit(1)
     
     if verbose:
         print("✓ Submission format is valid")
     
     # Load ground truth
-    ground_truth_df = load_ground_truth()
+    ground_truth = load_ground_truth()
+    if ground_truth is None:
+        print("\n⚠️  Cannot score submission without ground truth labels.")
+        print("   Your submission format is valid and ready to submit!")
+        sys.exit(0)
     
-    if ground_truth_df is None:
-        print("❌ Error: Ground truth labels not found")
-        print("\n📝 Note for challenge organizers:")
-        print("   Ground truth should be in: data/test_labels.csv or data/test_labels.pkl")
-        print("   Format: CSV with columns 'node_id' (0-38) and 'label' (0 or 1)")
-        return None
+    # Merge and calculate metrics
+    merged = submission_df.merge(ground_truth, on='node_id')
+    metrics = calculate_metrics(merged['label'], merged['prediction'])
     
-    # Merge and compute scores
-    submission_df = submission_df.sort_values('node_id')
-    ground_truth_df = ground_truth_df.sort_values('node_id')
+    # Display results
+    print("\n" + "="*60)
+    print(f"RESULTS FOR: {submission_name}")
+    print("="*60)
+    print(f"Accuracy:  {metrics['accuracy']:.4f}")
+    print(f"F1 Score:  {metrics['f1_score']:.4f}")
+    print(f"Precision: {metrics['precision']:.4f}")
+    print(f"Recall:    {metrics['recall']:.4f}")
+    if metrics['auc_roc']:
+        print(f"AUC-ROC:   {metrics['auc_roc']:.4f}")
+    print("="*60)
     
-    y_true = ground_truth_df['label'].values
-    y_pred = submission_df['prediction'].values
-    
-    # Compute metrics
-    accuracy = accuracy_score(y_true, y_pred)
-    f1 = f1_score(y_true, y_pred, average='macro')
-    precision = precision_score(y_true, y_pred, average='macro', zero_division=0)
-    recall = recall_score(y_true, y_pred, average='macro', zero_division=0)
-    
-    scores = {
-        'accuracy': accuracy,
-        'f1_score': f1,
-        'precision': precision,
-        'recall': recall
-    }
-    
-    # Print results
-    print("\n" + "=" * 60)
-    print("RESULTS")
-    print("=" * 60)
-    print(f"Accuracy:  {accuracy:.4f}")
-    print(f"F1 Score:  {f1:.4f} ⭐ (Primary Metric)")
-    print(f"Precision: {precision:.4f}")
-    print(f"Recall:    {recall:.4f}")
-    print("=" * 60)
+    # Update leaderboard
+    try:
+        update_leaderboard(submission_name, metrics, submission_file)
+    except Exception as e:
+        print(f"⚠️  Warning: Could not update leaderboard: {e}")
     
     if verbose:
-        from sklearn.metrics import confusion_matrix, classification_report
-        print("\n📊 Detailed Metrics:")
-        print("\nConfusion Matrix:")
-        cm = confusion_matrix(y_true, y_pred)
-        print(cm)
-        print("\nClassification Report:")
-        print(classification_report(y_true, y_pred, 
-                                   target_names=['Healthy', 'Parkinsons'],
-                                   digits=4))
-    
-    return scores
-
-
-def main():
-    parser = argparse.ArgumentParser(
-        description='Score submissions for GNN Parkinson\'s Challenge'
-    )
-    parser.add_argument('submission', type=str, help='Path to submission CSV file')
-    parser.add_argument('--verbose', '-v', action='store_true', 
-                       help='Show detailed metrics')
-    
-    args = parser.parse_args()
-    
-    scores = score_submission(args.submission, verbose=args.verbose)
-    
-    if scores is None:
-        sys.exit(1)
-    
-    sys.exit(0)
-
+        print("\n📊 Class distribution in predictions:")
+        print(submission_df['prediction'].value_counts())
+        print("\n📊 Class distribution in ground truth:")
+        print(ground_truth['label'].value_counts())
 
 if __name__ == '__main__':
     main()

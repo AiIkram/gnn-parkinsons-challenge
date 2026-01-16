@@ -1,179 +1,295 @@
 #!/usr/bin/env python3
 """
-Update leaderboard.json from submissions folder
-Scans all CSV files and their metadata to create ranked leaderboard
+Update leaderboard HTML from JSON data
 """
 
-import os
 import json
-import sys
-from datetime import datetime
 from pathlib import Path
+from datetime import datetime
 
-def scan_submissions(submissions_dir='submissions'):
-    """Scan submissions folder for CSV files and metadata"""
+def generate_leaderboard_html(leaderboard_data):
+    """Generate HTML leaderboard from JSON data"""
     
-    if not os.path.exists(submissions_dir):
-        print(f"⚠️  Warning: {submissions_dir} folder not found", file=sys.stderr)
-        return []
+    submissions = leaderboard_data.get('submissions', [])
+    last_updated = datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')
     
-    submissions = []
-    
-    # Scan all CSV files
-    for filename in os.listdir(submissions_dir):
-        if not filename.endswith('.csv'):
-            continue
+    html = f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GNN Parkinson's Challenge - Leaderboard</title>
+    <style>
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
         
-        team_name = filename.replace('.csv', '')
-        filepath = os.path.join(submissions_dir, filename)
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }}
         
-        # Look for metadata file
-        metadata_file = filepath.replace('.csv', '_metadata.json')
+        .container {{
+            max-width: 1200px;
+            margin: 0 auto;
+        }}
         
-        if os.path.exists(metadata_file):
-            try:
-                with open(metadata_file, 'r') as f:
-                    meta = json.load(f)
-                
-                submissions.append({
-                    'team_name': team_name,
-                    'score': float(meta.get('score', 0.0)),
-                    'model': meta.get('model', 'N/A'),
-                    'date': meta.get('date', datetime.now().strftime('%Y-%m-%d')),
-                    'description': meta.get('description', '')
-                })
-                
-                print(f"✅ Loaded: {team_name} - Score: {meta.get('score', 0.0):.4f}")
-                
-            except Exception as e:
-                print(f"⚠️  Warning: Could not load metadata for {team_name}: {e}", file=sys.stderr)
-                continue
-        else:
-            # No metadata - skip or use defaults
-            print(f"⚠️  Skipping {team_name}: No metadata file found", file=sys.stderr)
-            print(f"   Expected: {metadata_file}", file=sys.stderr)
-    
-    return submissions
-
-def update_leaderboard(submissions_dir='submissions', output_file='leaderboard.json'):
-    """Update leaderboard JSON file with current submissions"""
-    
-    print("\n" + "="*60)
-    print("🔄 UPDATING LEADERBOARD")
-    print("="*60)
-    
-    # Scan submissions
-    submissions = scan_submissions(submissions_dir)
+        .header {{
+            text-align: center;
+            color: white;
+            margin-bottom: 3rem;
+        }}
+        
+        .header h1 {{
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }}
+        
+        .header p {{
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }}
+        
+        .stats {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }}
+        
+        .stat-card {{
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }}
+        
+        .stat-card h3 {{
+            color: #667eea;
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }}
+        
+        .stat-card p {{
+            color: #666;
+            font-size: 0.9rem;
+        }}
+        
+        .leaderboard {{
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }}
+        
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+        }}
+        
+        thead {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }}
+        
+        th, td {{
+            padding: 1rem;
+            text-align: left;
+        }}
+        
+        th {{
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+        }}
+        
+        tbody tr {{
+            border-bottom: 1px solid #e0e0e0;
+            transition: background 0.2s;
+        }}
+        
+        tbody tr:hover {{
+            background: #f5f5f5;
+        }}
+        
+        tbody tr:last-child {{
+            border-bottom: none;
+        }}
+        
+        .rank {{
+            font-weight: bold;
+            color: #667eea;
+            font-size: 1.2rem;
+        }}
+        
+        .medal {{
+            font-size: 1.5rem;
+        }}
+        
+        .score {{
+            font-weight: 600;
+            color: #2c3e50;
+        }}
+        
+        .metric {{
+            color: #666;
+            font-size: 0.9rem;
+        }}
+        
+        .footer {{
+            text-align: center;
+            color: white;
+            margin-top: 2rem;
+            opacity: 0.8;
+        }}
+        
+        .empty-state {{
+            text-align: center;
+            padding: 3rem;
+            color: #999;
+        }}
+        
+        .empty-state h3 {{
+            margin-bottom: 1rem;
+            color: #666;
+        }}
+        
+        @media (max-width: 768px) {{
+            .header h1 {{
+                font-size: 1.8rem;
+            }}
+            
+            th, td {{
+                padding: 0.75rem 0.5rem;
+                font-size: 0.85rem;
+            }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏆 GNN Parkinson's Challenge</h1>
+            <p>Live Leaderboard - Ranked by F1 Score</p>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <h3>{len(submissions)}</h3>
+                <p>Total Submissions</p>
+            </div>
+            <div class="stat-card">
+                <h3>{f"{submissions[0]['f1_score']:.4f}" if submissions and submissions[0].get('f1_score') is not None else 'N/A'}</h3>
+                <p>Best F1 Score</p>
+            </div>
+            <div class="stat-card">
+                <h3>{f"{submissions[0]['accuracy']:.4f}" if submissions and submissions[0].get('accuracy') is not None else 'N/A'}</h3>
+                <p>Best Accuracy</p>
+            </div>
+        </div>
+        
+        <div class="leaderboard">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Team</th>
+                        <th>F1 Score</th>
+                        <th>Accuracy</th>
+                        <th>Precision</th>
+                        <th>Recall</th>
+                        <th>Submission Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+'''
     
     if not submissions:
-        print("\n⚠️  No valid submissions found!")
-        print("   Make sure each submission has a metadata JSON file:")
-        print("   - submissions/team_name.csv")
-        print("   - submissions/team_name_metadata.json")
-        
-        # Create empty leaderboard
-        data = {
-            'last_updated': datetime.now().isoformat(),
-            'submissions': []
-        }
+        html += '''
+                    <tr>
+                        <td colspan="7" class="empty-state">
+                            <h3>No submissions yet</h3>
+                            <p>Be the first to submit!</p>
+                        </td>
+                    </tr>
+'''
     else:
-        # Sort by score (descending)
-        submissions.sort(key=lambda x: x['score'], reverse=True)
+        medals = ['🥇', '🥈', '🥉']
+        for i, sub in enumerate(submissions, 1):
+            medal = medals[i-1] if i <= 3 else ''
+            # Safely get values with defaults
+            name = sub.get('name', 'Unknown')
+            f1 = sub.get('f1_score', 0.0)
+            acc = sub.get('accuracy', 0.0)
+            prec = sub.get('precision', 0.0)
+            rec = sub.get('recall', 0.0)
+            date = sub.get('date', 'N/A')
+            
+            html += f'''
+                    <tr>
+                        <td class="rank"><span class="medal">{medal}</span> #{i}</td>
+                        <td><strong>{name}</strong></td>
+                        <td class="score">{f1:.4f}</td>
+                        <td class="metric">{acc:.4f}</td>
+                        <td class="metric">{prec:.4f}</td>
+                        <td class="metric">{rec:.4f}</td>
+                        <td class="metric">{date}</td>
+                    </tr>
+'''
+    
+    html += f'''
+                </tbody>
+            </table>
+        </div>
         
-        # Add ranks
-        for i, sub in enumerate(submissions):
-            sub['rank'] = i + 1
-        
-        # Create leaderboard data
-        data = {
-            'last_updated': datetime.now().isoformat(),
-            'submissions': submissions
-        }
-        
-        print(f"\n📊 Leaderboard Summary:")
-        print(f"   Total submissions: {len(submissions)}")
-        print(f"   Best score: {submissions[0]['score']:.4f} ({submissions[0]['team_name']})")
-        print(f"   Worst score: {submissions[-1]['score']:.4f} ({submissions[-1]['team_name']})")
+        <div class="footer">
+            <p>Last Updated: {last_updated}</p>
+            <p><a href="https://github.com/AiIkram/gnn-parkinsons-challenge" style="color: white;">View on GitHub</a></p>
+        </div>
+    </div>
+</body>
+</html>
+'''
     
-    # Write to JSON
-    try:
-        with open(output_file, 'w') as f:
-            json.dump(data, f, indent=2)
-        
-        print(f"\n✅ Leaderboard updated successfully!")
-        print(f"   Output: {output_file}")
-        
-    except Exception as e:
-        print(f"\n❌ Error writing leaderboard: {e}", file=sys.stderr)
-        sys.exit(1)
-    
-    print("="*60 + "\n")
-
-def create_example_metadata():
-    """Create example metadata file for reference"""
-    
-    example = {
-        "score": 0.7654,
-        "model": "GCN",
-        "date": datetime.now().strftime('%Y-%m-%d'),
-        "description": "Graph Convolutional Network with 2 layers"
-    }
-    
-    output_path = "submissions/EXAMPLE_metadata.json"
-    os.makedirs("submissions", exist_ok=True)
-    
-    with open(output_path, 'w') as f:
-        json.dump(example, f, indent=2)
-    
-    print(f"📝 Created example metadata: {output_path}")
+    return html
 
 def main():
-    import argparse
+    # Load leaderboard JSON
+    json_path = Path('leaderboard.json')
     
-    parser = argparse.ArgumentParser(
-        description='Update leaderboard from submissions',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python update_leaderboard.py
-  python update_leaderboard.py --submissions-dir my_submissions
-  python update_leaderboard.py --create-example
-
-Metadata Format (team_name_metadata.json):
-  {
-    "score": 0.8500,
-    "model": "GAT",
-    "date": "2025-01-16",
-    "description": "Graph Attention Network"
-  }
-        """
-    )
+    if not json_path.exists():
+        print("Creating new leaderboard.json...")
+        leaderboard_data = {'submissions': []}
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(leaderboard_data, f, indent=2)
+    else:
+        with open(json_path, 'r', encoding='utf-8') as f:
+            leaderboard_data = json.load(f)
     
-    parser.add_argument(
-        '--submissions-dir',
-        default='submissions',
-        help='Directory containing submission CSV files (default: submissions)'
-    )
+    # Generate HTML
+    html = generate_leaderboard_html(leaderboard_data)
     
-    parser.add_argument(
-        '--output',
-        default='leaderboard.json',
-        help='Output JSON file (default: leaderboard.json)'
-    )
+    # Save to docs directory
+    docs_dir = Path('docs')
+    docs_dir.mkdir(exist_ok=True)
     
-    parser.add_argument(
-        '--create-example',
-        action='store_true',
-        help='Create example metadata file'
-    )
+    html_path = docs_dir / 'leaderboard.html'
+    with open(html_path, 'w', encoding='utf-8') as f:
+        f.write(html)
     
-    args = parser.parse_args()
+    # Also save JSON to docs
+    json_docs_path = docs_dir / 'leaderboard.json'
+    with open(json_docs_path, 'w', encoding='utf-8') as f:
+        json.dump(leaderboard_data, f, indent=2)
     
-    if args.create_example:
-        create_example_metadata()
-        return
-    
-    update_leaderboard(args.submissions_dir, args.output)
+    print(f"✓ Leaderboard HTML generated: {html_path}")
+    print(f"✓ Leaderboard JSON copied: {json_docs_path}")
 
 if __name__ == '__main__':
     main()

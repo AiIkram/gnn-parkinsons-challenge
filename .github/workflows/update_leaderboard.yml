@@ -2,59 +2,66 @@ name: Update Leaderboard
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
     paths:
-      - 'submissions/**'
-  workflow_dispatch:  # Allow manual trigger
+      - 'submissions/**.csv'
+      - 'leaderboard.json'
+  workflow_dispatch:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
-  update:
+  update-leaderboard:
     runs-on: ubuntu-latest
     
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v3
       with:
-        fetch-depth: 0  # Fetch all history
+        fetch-depth: 0
     
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v4
       with:
         python-version: '3.10'
     
-    - name: Update leaderboard
+    - name: Install dependencies
       run: |
-        echo "🔄 Updating leaderboard..."
-        python update_leaderboard.py
+        python -m pip install --upgrade pip
+        pip install pandas scikit-learn numpy
     
-    - name: Check for changes
-      id: check_changes
+    - name: Generate leaderboard HTML
       run: |
-        if git diff --quiet leaderboard.json; then
-          echo "changed=false" >> $GITHUB_OUTPUT
-          echo "ℹ️  No changes to leaderboard"
-        else
-          echo "changed=true" >> $GITHUB_OUTPUT
-          echo "✅ Leaderboard updated"
-        fi
+        python scripts/update_leaderboard.py
     
-    - name: Commit and push changes
-      if: steps.check_changes.outputs.changed == 'true'
+    - name: Commit and push if changed
       run: |
-        git config --local user.email "github-actions[bot]@users.noreply.github.com"
-        git config --local user.name "github-actions[bot]"
-        
-        git add leaderboard.json
-        git commit -m " Auto-update leaderboard [skip ci]"
-        git push
-        
-        echo "✅ Leaderboard pushed to GitHub"
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+        git add docs/leaderboard.html docs/leaderboard.json
+        git diff --quiet && git diff --staged --quiet || (git commit -m "🤖 Auto-update leaderboard" && git push)
+  
+  deploy-pages:
+    needs: update-leaderboard
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        ref: main
+    
+    - name: Setup Pages
+      uses: actions/configure-pages@v3
+    
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v2
+      with:
+        path: 'docs'
     
     - name: Deploy to GitHub Pages
-      if: steps.check_changes.outputs.changed == 'true'
-      run: |
-        echo "🚀 GitHub Pages will auto-deploy the updated leaderboard"
-        echo "   View at: https://AiIkram.github.io/gnn-parkinsons-challenge/leaderboard.html"
+      id: deployment
+      uses: actions/deploy-pages@v2
