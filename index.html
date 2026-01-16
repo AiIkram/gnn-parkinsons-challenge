@@ -3,258 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GNN Parkinson's Disease Detection Challenge</title>
+    <meta http-equiv="refresh" content="0; url=leaderboard.html">
+    <title>GNN Parkinson's Challenge</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             display: flex;
-            align-items: center;
             justify-content: center;
-            padding: 20px;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
         }
         
         .container {
-            background: white;
-            border-radius: 20px;
-            padding: 60px;
-            max-width: 900px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
             text-align: center;
-            animation: fadeIn 0.6s ease-out;
-        }
-        
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        .header-icon {
-            font-size: 4em;
-            margin-bottom: 20px;
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% {
-                transform: scale(1);
-            }
-            50% {
-                transform: scale(1.1);
-            }
         }
         
         h1 {
-            color: #667eea;
-            font-size: 3em;
-            margin-bottom: 15px;
-            font-weight: 700;
+            font-size: 3rem;
+            margin-bottom: 1rem;
         }
         
-        .subtitle {
-            color: #666;
-            font-size: 1.4em;
-            margin-bottom: 40px;
-            line-height: 1.6;
+        p {
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
         }
         
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 25px;
-            margin: 50px 0;
-        }
-        
-        .feature-box {
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            padding: 30px 20px;
-            border-radius: 15px;
-            border: 2px solid #dee2e6;
-            transition: all 0.3s ease;
-        }
-        
-        .feature-box:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.2);
-            border-color: #667eea;
-        }
-        
-        .feature-icon {
-            font-size: 3em;
-            margin-bottom: 15px;
-        }
-        
-        .feature-title {
-            font-weight: 700;
-            color: #667eea;
-            margin-bottom: 8px;
-            font-size: 1.3em;
-        }
-        
-        .feature-desc {
-            color: #666;
-            font-size: 0.95em;
-        }
-        
-        .cta-buttons {
-            margin-top: 40px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            justify-content: center;
-        }
-        
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        a {
             color: white;
-            padding: 18px 40px;
-            border-radius: 50px;
             text-decoration: none;
-            font-size: 1.2em;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            padding: 1rem 2rem;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+            transition: background 0.3s;
         }
         
-        .btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.5);
-        }
-        
-        .btn-secondary {
-            background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
-            box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);
-        }
-        
-        .btn-secondary:hover {
-            box-shadow: 0 10px 30px rgba(108, 117, 125, 0.5);
-        }
-        
-        .stats {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
-            border-radius: 15px;
-            margin-top: 40px;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 30px;
-        }
-        
-        .stat-item {
-            text-align: center;
-        }
-        
-        .stat-number {
-            font-size: 2.5em;
-            font-weight: 700;
-            margin-bottom: 5px;
-        }
-        
-        .stat-label {
-            font-size: 0.9em;
-            opacity: 0.9;
-        }
-        
-        @media (max-width: 768px) {
-            .container {
-                padding: 40px 30px;
-            }
-            
-            h1 {
-                font-size: 2em;
-            }
-            
-            .subtitle {
-                font-size: 1.1em;
-            }
-            
-            .features {
-                grid-template-columns: 1fr;
-            }
-            
-            .cta-buttons {
-                flex-direction: column;
-            }
-            
-            .btn {
-                width: 100%;
-                justify-content: center;
-            }
+        a:hover {
+            background: rgba(255, 255, 255, 0.3);
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header-icon">🧠</div>
-        <h1>GNN Parkinson's Challenge</h1>
-        <p class="subtitle">
-            Detect Parkinson's Disease using Graph Neural Networks<br>
-            <strong>UCI Machine Learning Repository Dataset</strong>
-        </p>
-
-        <div class="features">
-            <div class="feature-box">
-                <div class="feature-icon">📊</div>
-                <div class="feature-title">195 Samples</div>
-                <div class="feature-desc">Biomedical voice measurements</div>
-            </div>
-            <div class="feature-box">
-                <div class="feature-icon">🎯</div>
-                <div class="feature-title">Binary Classification</div>
-                <div class="feature-desc">Healthy vs Parkinson's</div>
-            </div>
-            <div class="feature-box">
-                <div class="feature-icon">🏆</div>
-                <div class="feature-title">F1 Score Metric</div>
-                <div class="feature-desc">Macro-averaged evaluation</div>
-            </div>
-            <div class="feature-box">
-                <div class="feature-icon">🔬</div>
-                <div class="feature-title">Graph Structure</div>
-                <div class="feature-desc">K-NN constructed graph</div>
-            </div>
-        </div>
-
-        <div class="stats">
-            <div class="stat-item">
-                <div class="stat-number">156</div>
-                <div class="stat-label">Training Samples</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number">39</div>
-                <div class="stat-label">Test Samples</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number">22</div>
-                <div class="stat-label">Features per Node</div>
-            </div>
-        </div>
-
-        <div class="cta-buttons">
-            <a href="leaderboard.html" class="btn">
-                🏆 View Leaderboard
-            </a>
-            <a href="https://github.com/AiIkram/gnn-parkinsons-challenge" class="btn btn-secondary">
-                📂 GitHub Repository
-            </a>
-        </div>
+        <h1>🏆 GNN Parkinson's Challenge</h1>
+        <p>Redirecting to leaderboard...</p>
+        <a href="leaderboard.html">View Leaderboard</a>
     </div>
 </body>
 </html>
