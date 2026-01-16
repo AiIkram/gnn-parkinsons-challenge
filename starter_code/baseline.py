@@ -5,6 +5,8 @@ import dgl
 import pickle
 import pandas as pd
 import numpy as np
+import os
+from pathlib import Path
 from sklearn.metrics import f1_score, classification_report
 from dgl.nn import GraphConv
 
@@ -28,13 +30,58 @@ class GCNModel(nn.Module):
         return h
 
 
+def find_data_path():
+    """Find data directory regardless of where script is run from"""
+    possible_paths = [
+        Path('data'),           # Run from project root
+        Path('../data'),        # Run from starter_code
+        Path('../../data'),     # Run from subdirectory
+    ]
+    
+    for path in possible_paths:
+        if path.exists() and (path / 'train_graph.pkl').exists():
+            return path
+    
+    raise FileNotFoundError(
+        "Could not find data directory. Make sure you run from project root "
+        "or starter_code directory, and data/train_graph.pkl exists."
+    )
+
+
 def load_data():
+    """Load data with flexible path handling"""
     print("Loading data...")
-    with open('../data/train_graph.pkl', 'rb') as f:
+    
+    data_path = find_data_path()
+    train_path = data_path / 'train_graph.pkl'
+    test_path = data_path / 'test_graph.pkl'
+    
+    print(f"✓ Found data directory: {data_path.absolute()}")
+    
+    with open(train_path, 'rb') as f:
         train_data = pickle.load(f)
-    with open('../data/test_graph.pkl', 'rb') as f:
+    with open(test_path, 'rb') as f:
         test_data = pickle.load(f)
+    
     return train_data, test_data
+
+
+def find_submissions_path():
+    """Find or create submissions directory"""
+    possible_paths = [
+        Path('submissions'),      # Run from project root
+        Path('../submissions'),   # Run from starter_code
+    ]
+    
+    for path in possible_paths:
+        if path.parent.exists():
+            path.mkdir(exist_ok=True)
+            return path
+    
+    # Fallback: create in current directory
+    path = Path('submissions')
+    path.mkdir(exist_ok=True)
+    return path
 
 
 def train_epoch(model, g, features, labels, train_mask, optimizer):
@@ -75,7 +122,11 @@ def main():
     print("GNN Parkinson's Challenge - Baseline GCN Model")
     print("=" * 60)
     
-    train_data, test_data = load_data()
+    try:
+        train_data, test_data = load_data()
+    except FileNotFoundError as e:
+        print(f"\n❌ ERROR: {e}")
+        return
     
     g = train_data['graph']
     features = train_data['features']
@@ -97,12 +148,12 @@ def main():
     print(f"  Parkinson's (1): {(train_labels == 1).sum().item()}")
     
     in_feats = features.shape[1]
-    hidden_size = 128  # Increased from 64
+    hidden_size = 128
     num_classes = 2
-    dropout = 0.6  # Increased dropout
-    lr = 0.005  # Lower learning rate
+    dropout = 0.6
+    lr = 0.005
     weight_decay = 5e-4
-    num_epochs = 300  # More epochs
+    num_epochs = 300
     
     print(f"\nModel Hyperparameters:")
     print(f"  Hidden size: {hidden_size}")
@@ -118,7 +169,7 @@ def main():
     
     best_val_f1 = 0
     best_epoch = 0
-    patience = 80  # Increased patience
+    patience = 80
     patience_counter = 0
     
     for epoch in range(num_epochs):
@@ -167,23 +218,31 @@ def main():
     
     model.eval()
     with torch.no_grad():
-        # Use the same graph and features (test nodes are part of the full graph)
         test_logits = model(g, features)
         _, all_predictions = torch.max(test_logits, 1)
-        # Extract only test node predictions
         test_predictions = all_predictions[test_node_ids].cpu().numpy()
     
+    # Create submission with renumbered node_ids (0-38)
     submission = pd.DataFrame({
-        'node_id': test_node_ids,
+        'node_id': range(39),  # Always 0-38 for consistency
         'prediction': test_predictions
     })
     
-    submission.to_csv('../submissions/sample_submission.csv', index=False)
-    print("Submission saved to: ../submissions/sample_submission.csv")
+    # Save submission
+    submissions_path = find_submissions_path()
+    output_file = submissions_path / 'baseline_gcn.csv'
+    submission.to_csv(output_file, index=False)
+    
+    print(f"\n✓ Submission saved to: {output_file.absolute()}")
+    print(f"\nSubmission preview:")
+    print(submission.head(10))
     
     print("\n" + "=" * 60)
     print("Baseline model training complete!")
     print("=" * 60)
+    print("\n📝 Next steps:")
+    print(f"  1. Score your submission: python scoring_script.py {output_file}")
+    print(f"  2. Try GAT model: python starter_code/baseline_gat.py")
 
 
 if __name__ == '__main__':

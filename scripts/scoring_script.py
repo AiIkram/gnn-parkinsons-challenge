@@ -1,150 +1,197 @@
 #!/usr/bin/env python3
 """
 Scoring script for GNN Parkinson's Challenge
-Validates and scores submission CSV files against ground truth
+Evaluates submission files against ground truth labels
 """
 
-import sys
 import pandas as pd
 import numpy as np
-from sklearn.metrics import f1_score, confusion_matrix, classification_report
-import pickle
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+import argparse
+import sys
 import os
+import pickle
 
 def load_ground_truth():
-    """Load test labels from pickle file"""
-    try:
-        # Try multiple possible paths
-        paths = [
-            'data/test_labels.pkl',
-            'data/test_graph.pkl',
-            '../data/test_labels.pkl'
-        ]
-        
-        for path in paths:
-            if os.path.exists(path):
-                with open(path, 'rb') as f:
-                    data = pickle.load(f)
-                    
-                    # Handle different data structures
-                    if hasattr(data, 'ndata') and 'label' in data.ndata:
-                        return data.ndata['label'].numpy()
-                    elif isinstance(data, np.ndarray):
-                        return data
-                    elif isinstance(data, list):
-                        return np.array(data)
-                        
-        raise FileNotFoundError("Ground truth labels not found")
-        
-    except Exception as e:
-        print(f"Error loading ground truth: {e}", file=sys.stderr)
-        sys.exit(1)
-
-def validate_submission(df, expected_length=39):
-    """Validate submission format and content"""
+    """Load ground truth labels from pickle or CSV"""
     
-    # Check shape
-    if len(df) != expected_length:
-        print(f"❌ Error: Expected {expected_length} rows, got {len(df)}", file=sys.stderr)
-        return False
+    # Try multiple possible locations
+    possible_paths = [
+        'data/test_labels.csv',
+        'data/test_labels.pkl',
+        '../data/test_labels.csv',
+        '../data/test_labels.pkl',
+    ]
+    
+    for path in possible_paths:
+        if os.path.exists(path):
+            try:
+                if path.endswith('.csv'):
+                    df = pd.read_csv(path)
+                    print(f"✓ Loaded ground truth from {path}")
+                    return df
+                elif path.endswith('.pkl'):
+                    with open(path, 'rb') as f:
+                        data = pickle.load(f)
+                    
+                    # Convert to DataFrame
+                    if isinstance(data, dict):
+                        df = pd.DataFrame(list(data.items()), columns=['node_id', 'label'])
+                    elif isinstance(data, pd.DataFrame):
+                        df = data
+                    else:
+                        # Assume array of labels
+                        df = pd.DataFrame({
+                            'node_id': range(len(data)),
+                            'label': data
+                        })
+                    
+                    # Ensure node_ids are 0-38
+                    if len(df) != 39:
+                        if len(df) > 39:
+                            df = df.iloc[:39]
+                        df['node_id'] = range(39)
+                    
+                    print(f"✓ Loaded ground truth from {path}")
+                    return df
+            except Exception as e:
+                continue
+    
+    return None
+
+
+def validate_submission(submission_df):
+    """Validate submission format"""
+    
+    errors = []
     
     # Check required columns
-    required_cols = ['node_id', 'prediction']
-    for col in required_cols:
-        if col not in df.columns:
-            print(f"❌ Error: Missing required column '{col}'", file=sys.stderr)
-            print(f"   Found columns: {list(df.columns)}", file=sys.stderr)
-            return False
+    if 'node_id' not in submission_df.columns:
+        errors.append("Missing 'node_id' column")
+    if 'prediction' not in submission_df.columns:
+        errors.append("Missing 'prediction' column")
+    
+    if errors:
+        return False, errors
     
     # Check node_id range
-    if not all(df['node_id'].between(0, expected_length - 1)):
-        print("❌ Error: node_id values must be between 0 and 38", file=sys.stderr)
-        return False
+    node_ids = submission_df['node_id'].values
+    if node_ids.min() < 0 or node_ids.max() > 38:
+        errors.append(f"node_id values must be between 0 and 38 (got {node_ids.min()} to {node_ids.max()})")
     
-    # Check for duplicates
-    if df['node_id'].duplicated().any():
-        print("❌ Error: Duplicate node_id values found", file=sys.stderr)
-        return False
+    # Check for 39 unique nodes
+    if len(node_ids) != 39:
+        errors.append(f"Expected 39 predictions, got {len(node_ids)}")
     
-    # Check prediction values
-    unique_preds = df['prediction'].unique()
-    if not all(p in [0, 1] for p in unique_preds):
-        print(f"❌ Error: Predictions must be 0 or 1, found: {unique_preds}", file=sys.stderr)
-        return False
+    if len(set(node_ids)) != 39:
+        errors.append(f"node_id values must be unique (got {len(set(node_ids))} unique values)")
     
-    return True
+    # Check predictions are 0 or 1
+    predictions = submission_df['prediction'].values
+    if not all(p in [0, 1] for p in predictions):
+        errors.append("prediction values must be 0 or 1")
+    
+    return len(errors) == 0, errors
 
-def score_submission(csv_path, verbose=False):
-    """Score a submission CSV against ground truth"""
+
+def score_submission(submission_path, verbose=False):
+    """Score a submission file"""
     
     # Load submission
     try:
-        df = pd.read_csv(csv_path)
+        submission_df = pd.read_csv(submission_path)
+        if verbose:
+            print(f"\n📄 Loaded submission: {submission_path}")
+            print(f"   Shape: {submission_df.shape}")
+    except FileNotFoundError:
+        print(f"❌ Error: File not found: {submission_path}")
+        return None
     except Exception as e:
-        print(f"❌ Error reading CSV: {e}", file=sys.stderr)
-        sys.exit(1)
+        print(f"❌ Error loading submission: {e}")
+        return None
     
-    # Validate
-    if not validate_submission(df):
-        sys.exit(1)
+    # Validate submission format
+    is_valid, errors = validate_submission(submission_df)
+    if not is_valid:
+        print(f"❌ Error: Invalid submission format")
+        for error in errors:
+            print(f"   - {error}")
+        return None
+    
+    if verbose:
+        print("✓ Submission format is valid")
     
     # Load ground truth
-    y_true = load_ground_truth()
+    ground_truth_df = load_ground_truth()
     
-    if len(y_true) != len(df):
-        print(f"❌ Error: Ground truth has {len(y_true)} samples, submission has {len(df)}", file=sys.stderr)
-        sys.exit(1)
+    if ground_truth_df is None:
+        print("❌ Error: Ground truth labels not found")
+        print("\n📝 Note for challenge organizers:")
+        print("   Ground truth should be in: data/test_labels.csv or data/test_labels.pkl")
+        print("   Format: CSV with columns 'node_id' (0-38) and 'label' (0 or 1)")
+        return None
     
-    # Sort by node_id and extract predictions
-    df = df.sort_values('node_id').reset_index(drop=True)
-    y_pred = df['prediction'].values
+    # Merge and compute scores
+    submission_df = submission_df.sort_values('node_id')
+    ground_truth_df = ground_truth_df.sort_values('node_id')
     
-    # Calculate metrics
-    f1_macro = f1_score(y_true, y_pred, average='macro')
-    f1_weighted = f1_score(y_true, y_pred, average='weighted')
+    y_true = ground_truth_df['label'].values
+    y_pred = submission_df['prediction'].values
     
-    # Print primary score
-    print(f"{f1_macro:.4f}")
+    # Compute metrics
+    accuracy = accuracy_score(y_true, y_pred)
+    f1 = f1_score(y_true, y_pred, average='macro')
+    precision = precision_score(y_true, y_pred, average='macro', zero_division=0)
+    recall = recall_score(y_true, y_pred, average='macro', zero_division=0)
     
-    # Verbose output
+    scores = {
+        'accuracy': accuracy,
+        'f1_score': f1,
+        'precision': precision,
+        'recall': recall
+    }
+    
+    # Print results
+    print("\n" + "=" * 60)
+    print("RESULTS")
+    print("=" * 60)
+    print(f"Accuracy:  {accuracy:.4f}")
+    print(f"F1 Score:  {f1:.4f} ⭐ (Primary Metric)")
+    print(f"Precision: {precision:.4f}")
+    print(f"Recall:    {recall:.4f}")
+    print("=" * 60)
+    
     if verbose:
-        print("\n" + "="*60, file=sys.stderr)
-        print("📊 SUBMISSION SCORING REPORT", file=sys.stderr)
-        print("="*60, file=sys.stderr)
-        print(f"\n✅ Validation: PASSED", file=sys.stderr)
-        print(f"📈 F1-Score (Macro):    {f1_macro:.4f}", file=sys.stderr)
-        print(f"📈 F1-Score (Weighted): {f1_weighted:.4f}", file=sys.stderr)
-        
-        print("\n📋 Classification Report:", file=sys.stderr)
-        print(classification_report(y_true, y_pred, 
-                                   target_names=['Healthy', 'Parkinson\'s'],
-                                   digits=4), file=sys.stderr)
-        
-        print("🔢 Confusion Matrix:", file=sys.stderr)
+        from sklearn.metrics import confusion_matrix, classification_report
+        print("\n📊 Detailed Metrics:")
+        print("\nConfusion Matrix:")
         cm = confusion_matrix(y_true, y_pred)
-        print(f"   Predicted:  Healthy  PD", file=sys.stderr)
-        print(f"   Healthy  :  {cm[0,0]:>7}  {cm[0,1]:>3}", file=sys.stderr)
-        print(f"   PD       :  {cm[1,0]:>7}  {cm[1,1]:>3}", file=sys.stderr)
-        print("="*60 + "\n", file=sys.stderr)
+        print(cm)
+        print("\nClassification Report:")
+        print(classification_report(y_true, y_pred, 
+                                   target_names=['Healthy', 'Parkinsons'],
+                                   digits=4))
     
-    return f1_macro
+    return scores
+
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python scoring_script.py <csv_file> [--verbose]", file=sys.stderr)
-        print("\nExample:", file=sys.stderr)
-        print("  python scoring_script.py submissions/my_team.csv", file=sys.stderr)
-        print("  python scoring_script.py submissions/my_team.csv --verbose", file=sys.stderr)
+    parser = argparse.ArgumentParser(
+        description='Score submissions for GNN Parkinson\'s Challenge'
+    )
+    parser.add_argument('submission', type=str, help='Path to submission CSV file')
+    parser.add_argument('--verbose', '-v', action='store_true', 
+                       help='Show detailed metrics')
+    
+    args = parser.parse_args()
+    
+    scores = score_submission(args.submission, verbose=args.verbose)
+    
+    if scores is None:
         sys.exit(1)
     
-    csv_path = sys.argv[1]
-    verbose = '--verbose' in sys.argv or '-v' in sys.argv
-    
-    if not os.path.exists(csv_path):
-        print(f"❌ Error: File not found: {csv_path}", file=sys.stderr)
-        sys.exit(1)
-    
-    score_submission(csv_path, verbose=verbose)
+    sys.exit(0)
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     main()
