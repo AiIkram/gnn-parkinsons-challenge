@@ -1,0 +1,28 @@
+{
+  "last_updated": "2025-01-16T10:30:00Z",
+  "baseline_score": 0.7654,
+  "submissions": [
+    {
+      "rank": 1,
+      "username": "baseline_gcn",
+      "score": 0.7654,
+      "model": "GCN",
+      "date": "2025-01-15",
+      "code": "submissions/baseline_gcn/",
+      "description": "2-layer GCN baseline",
+      "isNew": false,
+      "isTop": true
+    },
+    {
+      "rank": 2,
+      "username": "baseline_gat",
+      "score": 0.7521,
+      "model": "GAT",
+      "date": "2025-01-15",
+      "code": "submissions/baseline_gat/",
+      "description": "Graph Attention Network",
+      "isNew": false,
+      "isTop": true
+    }
+  ]
+}
