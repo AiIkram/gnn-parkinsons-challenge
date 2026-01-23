@@ -1,19 +1,17 @@
 {
-  "last_updated": "2025-01-16T00:00:00Z",
-  "submissions": [
+  "entries": [
     {
-      "rank": 1,
-      "team_name": "baseline_gcn",
+      "participant": "Baseline-GCN",
       "score": 0.7654,
       "model": "GCN",
-      "date": "2025-01-15"
+      "date": "2025-01-23"
     },
     {
-      "rank": 2,
-      "team_name": "baseline_gat",
+      "participant": "Baseline-GAT",
       "score": 0.7521,
       "model": "GAT",
-      "date": "2025-01-15"
+      "date": "2025-01-23"
     }
-  ]
+  ],
+  "last_updated": "2025-01-23T12:00:00Z"
 }

@@ -1,3 +1,4 @@
-theme: jekyll-theme-minimal
+theme: jekyll-theme-cayman
 title: GNN Parkinson's Challenge
 description: Detect Parkinson's Disease using Graph Neural Networks
+show_downloads: false

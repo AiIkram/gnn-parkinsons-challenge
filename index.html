@@ -3,53 +3,469 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="refresh" content="0; url=leaderboard.html">
     <title>GNN Parkinson's Challenge</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
+        * {
             margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            min-height: 100vh;
+            color: #333;
         }
-        
-        .container {
-            text-align: center;
+
+        .navbar {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px 0;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
         }
-        
-        h1 {
-            font-size: 3rem;
-            margin-bottom: 1rem;
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
         }
-        
-        p {
-            font-size: 1.2rem;
-            margin-bottom: 2rem;
+
+        .logo {
+            font-size: 1.5em;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
-        
-        a {
-            color: white;
+
+        .nav-links {
+            display: flex;
+            gap: 30px;
+        }
+
+        .nav-links a {
+            color: #333;
             text-decoration: none;
-            padding: 1rem 2rem;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 5px;
-            transition: background 0.3s;
+            font-weight: 500;
+            transition: color 0.3s ease;
         }
-        
-        a:hover {
-            background: rgba(255, 255, 255, 0.3);
+
+        .nav-links a:hover {
+            color: #667eea;
+        }
+
+        .hero {
+            text-align: center;
+            padding: 100px 20px;
+            color: white;
+        }
+
+        .hero h1 {
+            font-size: 4em;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+            animation: fadeInDown 1s ease;
+        }
+
+        .hero p {
+            font-size: 1.3em;
+            margin-bottom: 40px;
+            opacity: 0.9;
+            animation: fadeInUp 1s ease;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 15px 40px;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: white;
+            color: #667eea;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid white;
+            backdrop-filter: blur(10px);
+        }
+
+        .btn-secondary:hover {
+            background: white;
+            color: #667eea;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 80px 20px;
+        }
+
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 60px;
+            margin-bottom: 40px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .section h2 {
+            font-size: 2.5em;
+            margin-bottom: 30px;
+            color: #333;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .feature-card {
+            text-align: center;
+            padding: 30px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            transition: transform 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-10px);
+        }
+
+        .feature-card i {
+            font-size: 3em;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .feature-card h3 {
+            font-size: 1.5em;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .feature-card p {
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .stat-box {
+            text-align: center;
+            padding: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            color: white;
+        }
+
+        .stat-box h3 {
+            font-size: 3em;
+            margin-bottom: 10px;
+        }
+
+        .stat-box p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .timeline {
+            position: relative;
+            padding-left: 40px;
+            margin-top: 40px;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 30px;
+            padding-left: 30px;
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -44px;
+            top: 5px;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #667eea;
+            border: 3px solid white;
+            box-shadow: 0 0 0 3px #667eea;
+        }
+
+        .timeline-item h4 {
+            font-size: 1.3em;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .timeline-item p {
+            color: #666;
+            line-height: 1.6;
+        }
+
+        footer {
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            text-align: center;
+            padding: 40px 20px;
+            margin-top: 80px;
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5em;
+            }
+
+            .section {
+                padding: 30px 20px;
+            }
+
+            .nav-links {
+                flex-direction: column;
+                gap: 15px;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🏆 GNN Parkinson's Challenge</h1>
-        <p>Redirecting to leaderboard...</p>
-        <a href="leaderboard.html">View Leaderboard</a>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">🧠 GNN Parkinson's Challenge</div>
+            <div class="nav-links">
+                <a href="#about">About</a>
+                <a href="#features">Features</a>
+                <a href="leaderboard.html">Leaderboard</a>
+                <a href="https://github.com/AiIkram/gnn-parkinsons-challenge" target="_blank">GitHub</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="hero">
+        <h1>🧠 GNN Parkinson's Challenge</h1>
+        <p>Detect Parkinson's Disease using Graph Neural Networks</p>
+        <div class="cta-buttons">
+            <a href="https://github.com/AiIkram/gnn-parkinsons-challenge" class="btn btn-primary">
+                <i class="fab fa-github"></i> View on GitHub
+            </a>
+            <a href="leaderboard.html" class="btn btn-secondary">
+                <i class="fas fa-trophy"></i> View Leaderboard
+            </a>
+        </div>
     </div>
+
+    <div class="container">
+        <div class="section" id="about">
+            <h2>🎯 Challenge Overview</h2>
+            <p style="font-size: 1.1em; line-height: 1.8; color: #666; margin-bottom: 30px;">
+                Welcome to the GNN Parkinson's Disease Detection Challenge! This competition focuses on using 
+                Graph Neural Networks (GNNs) to detect Parkinson's Disease from acoustic voice measurements. 
+                By modeling relationships between patients and features as a graph, you can capture complex 
+                patterns that traditional ML methods might miss!
+            </p>
+
+            <div class="stats-row">
+                <div class="stat-box">
+                    <h3>195</h3>
+                    <p>Total Nodes</p>
+                </div>
+                <div class="stat-box">
+                    <h3>22</h3>
+                    <p>Features</p>
+                </div>
+                <div class="stat-box">
+                    <h3>F1-Score</h3>
+                    <p>Evaluation Metric</p>
+                </div>
+                <div class="stat-box">
+                    <h3>⭐⭐⭐⭐</h3>
+                    <p>Difficulty</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section" id="features">
+            <h2>✨ Key Features</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <i class="fas fa-brain"></i>
+                    <h3>Real Medical Data</h3>
+                    <p>UCI Parkinson's Dataset with 195 voice recordings from 31 subjects</p>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-project-diagram"></i>
+                    <h3>Graph Structure</h3>
+                    <p>K-NN graphs with subject connections for rich relational learning</p>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-code"></i>
+                    <h3>Starter Code</h3>
+                    <p>GCN and GAT baselines to get you started quickly</p>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-trophy"></i>
+                    <h3>Live Leaderboard</h3>
+                    <p>Automatic scoring via GitHub Actions with real-time rankings</p>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-book"></i>
+                    <h3>Learning Focus</h3>
+                    <p>Covers DGL Lectures 1.1-4.6 concepts</p>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-users"></i>
+                    <h3>Research Opportunities</h3>
+                    <p>Top participants invited to co-author research papers</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🚀 Getting Started</h2>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <h4>Step 1: Fork Repository</h4>
+                    <p>Clone the repository and set up your local environment with Python 3.8+</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>Step 2: Install Dependencies</h4>
+                    <p>Install DGL, PyTorch, and other required packages from requirements.txt</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>Step 3: Generate Data</h4>
+                    <p>Run the data generation script to create train and test graph files</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>Step 4: Train Model</h4>
+                    <p>Start with the baseline GCN model and improve from there</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>Step 5: Submit Predictions</h4>
+                    <p>Create a Pull Request with your submission CSV for automatic scoring</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>💡 Tips for Success</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <i class="fas fa-layer-group"></i>
+                    <h3>Layer Depth</h3>
+                    <p>Try 2-4 GNN layers to balance expressiveness and over-smoothing</p>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-random"></i>
+                    <h3>Graph Structure</h3>
+                    <p>Experiment with different k values in KNN and edge weights</p>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-chart-bar"></i>
+                    <h3>Handle Imbalance</h3>
+                    <p>Use class weights or sampling to handle the imbalanced dataset</p>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-network-wired"></i>
+                    <h3>Advanced GNNs</h3>
+                    <p>Try GAT, GraphSAGE, or other advanced architectures</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📊 Current Leaders</h2>
+            <p style="font-size: 1.1em; color: #666; margin-bottom: 30px;">
+                Check out who's leading the competition right now!
+            </p>
+            <div style="text-align: center;">
+                <a href="leaderboard.html" class="btn btn-primary" style="display: inline-block;">
+                    <i class="fas fa-trophy"></i> View Full Leaderboard
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p style="font-size: 1.1em; margin-bottom: 10px;">
+            🧠 GNN Parkinson's Challenge | Built with ❤️ for ML Research
+        </p>
+        <p style="opacity: 0.7;">
+            <a href="https://github.com/AiIkram/gnn-parkinsons-challenge" style="color: white; text-decoration: none;">
+                <i class="fab fa-github"></i> GitHub
+            </a> | 
+            <a href="mailto:aissiouikram47@gmail.com" style="color: white; text-decoration: none;">
+                <i class="fas fa-envelope"></i> Contact
+            </a>
+        </p>
+    </footer>
 </body>
 </html>

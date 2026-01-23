@@ -2,6 +2,11 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Challenge Status](https://img.shields.io/badge/status-active-success.svg)](https://aiikram.github.io/gnn-parkinsons-challenge/)
+
+**[🏆 View Live Leaderboard](https://aiikram.github.io/gnn-parkinsons-challenge/leaderboard.html)** | **[📖 View Challenge Website](https://aiikram.github.io/gnn-parkinsons-challenge/)**
+
+---
 
 ## 🎯 Challenge Overview
 
@@ -9,18 +14,20 @@ Welcome to the **GNN Parkinson's Disease Detection Challenge**! This competition
 
 **Why GNNs?** Parkinson's Disease affects multiple interconnected biomarkers simultaneously. By modeling these relationships as a graph where:
 - **Nodes** represent individual voice recordings/patients
-- **Edges** connect similar patients or related acoustic features
+- **Edges** connect similar patients or related acoustic features  
 - **Node features** contain voice measurements (jitter, shimmer, pitch, etc.)
 
 You can capture complex patterns that traditional ML methods might miss!
 
 ### 🏆 Competition Details
 
-- **Task Type**: Node Classification (Binary)
-- **Difficulty**: ⭐⭐⭐⭐ (Challenging)
-- **Metric**: **Macro F1-Score** (handles class imbalance)
-- **Dataset**: UCI Parkinson's Dataset with graph structure
-- **Deadline**: Open-ended (rolling leaderboard)
+| **Aspect** | **Details** |
+|------------|-------------|
+| **Task Type** | Node Classification (Binary) |
+| **Difficulty** | ⭐⭐⭐⭐ (Challenging) |
+| **Metric** | **Macro F1-Score** (handles class imbalance) |
+| **Dataset** | UCI Parkinson's Dataset with graph structure |
+| **Deadline** | Open-ended (rolling leaderboard) |
 
 ### 🎓 Learning Objectives
 
@@ -87,6 +94,7 @@ Expected baseline F1-score: **~0.72-0.78**
 ---
 
 ## 📁 Repository Structure
+
 ```
 gnn-parkinsons-challenge/
 ├── data/
@@ -101,9 +109,14 @@ gnn-parkinsons-challenge/
 │   └── requirements.txt         # Dependencies
 ├── scripts/
 │   ├── generate_graph_data.py   # Data preprocessing
-│   └── scoring_script.py        # Evaluation
+│   ├── scoring_script.py        # Evaluation
+│   └── update_leaderboard.py    # Leaderboard management
 ├── .github/workflows/
 │   └── score_submission.yml     # Auto-scoring
+├── leaderboard.html             # Live leaderboard page
+├── leaderboard.json             # Leaderboard data
+├── index.html                   # Challenge homepage
+├── _config.yml                  # GitHub Pages config
 ├── LEADERBOARD.md
 ├── RULES.md
 └── README.md
@@ -114,7 +127,6 @@ gnn-parkinsons-challenge/
 ## 📤 Making a Submission
 
 ### Submission Format
-
 CSV with exactly 39 rows:
 ```csv
 node_id,prediction
@@ -126,11 +138,12 @@ node_id,prediction
 
 ### How to Submit
 
-1. Fork this repository
-2. Add your CSV to `submissions/`
-3. Create a Pull Request
-4. GitHub Actions scores automatically
-5. Results posted as comment
+1. **Fork this repository**
+2. **Train your model** and generate predictions
+3. **Add your CSV** to `submissions/your_name.csv`
+4. **Create a Pull Request**
+5. **GitHub Actions scores automatically**
+6. **Results posted** as comment and added to leaderboard
 
 ---
 
@@ -138,134 +151,113 @@ node_id,prediction
 
 **Macro F1-Score** = (F1_Healthy + F1_Parkinson's) / 2
 
-Why?
-- Handles class imbalance
-- Equal importance to both classes
-- More challenging than accuracy
+**Why?**
+- ✅ Handles class imbalance
+- ✅ Equal importance to both classes  
+- ✅ More challenging than accuracy
+- ✅ Better reflects real-world performance
 
 ---
 
-# Add This Section to Your README.md
+## 🏅 Current Leaderboard
+
+| Rank | Participant | F1-Score | Model | Date |
+|------|-------------|----------|-------|------|
+| 🥇 1 | Baseline-GCN | 0.7654 | GCN | 2025-01-23 |
+| 🥈 2 | Baseline-GAT | 0.7521 | GAT | 2025-01-23 |
+| 🥉 3 | *---* | ??? | ??? | TBD |
+
+**👉 [View Full Live Leaderboard](https://aiikram.github.io/gnn-parkinsons-challenge/leaderboard.html)**
 
 ---
 
-## 🏆 Live Leaderboard
+## 💡 Tips & Tricks
 
-**[👉 View Live Leaderboard](https://AiIkram.github.io/gnn-parkinsons-challenge/leaderboard.html)**
+### For Beginners
+1. ✅ Start with baseline GCN
+2. ✅ Try different hidden sizes (32, 64, 128)
+3. ✅ Vary number of layers (2-4)
+4. ✅ Add dropout for regularization (0.3-0.5)
+5. ✅ Use cross-validation
 
-The leaderboard is automatically updated when submissions are merged via Pull Request.
+### Advanced
+- 🔥 Experiment with k in KNN graphs (3, 5, 7, 10)
+- 🔥 Add edge weights based on similarity
+- 🔥 Try GAT attention mechanisms
+- 🔥 Use skip connections / residual connections
+- 🔥 Handle class imbalance (weighted loss, oversampling)
+- 🔥 Ensemble multiple models
+- 🔥 Try GraphSAGE, GIN, or other architectures
 
-### Current Top 3
-
-| Rank | Team | F1-Score | Model | Date |
-|------|------|----------|-------|------|
-| 🥇 1 | baseline_gcn | 0.7654 | GCN | 2025-01-15 |
-| 🥈 2 | baseline_gat | 0.7521 | GAT | 2025-01-15 |
-| 🥉 3 | *Your team here* | - | - | - |
+### Common Pitfalls
+⚠️ **Overfitting** (small dataset - use regularization!)  
+⚠️ **Over-smoothing** (too many layers collapse node representations)  
+⚠️ **Ignoring class imbalance** (use weighted metrics)  
+⚠️ **Data leakage** (don't use test labels!)
 
 ---
 
-## 📤 How to Submit
+## 🎯 Challenge Rules
 
-### 1. Prepare Your Submission
+### ✅ Must Do
+- Use at least one GNN layer
+- Only use provided dataset
+- Complete inference within 5 minutes
+- Set random seeds for reproducibility
+- Provide code with submission
 
-Create two files in the `submissions/` folder:
+### ❌ Cannot Do
+- Use test labels (obviously!)
+- Use external Parkinson's datasets
+- Use pure non-GNN models (e.g., just MLP)
 
-**`submissions/your_team_name.csv`** (Required):
-```csv
-node_id,prediction
-0,1
-1,0
-2,1
-...
-38,0
-```
+**See [RULES.md](RULES.md) for complete details.**
 
-**`submissions/your_team_name_metadata.json`** (Optional but recommended):
-```json
-{
-  "score": 0.8500,
-  "model": "GAT",
-  "date": "2025-01-16",
-  "description": "Graph Attention Network with 3 layers"
+---
+
+## 🤝 Contributing
+
+- **Bug?** [Open an issue](https://github.com/AiIkram/gnn-parkinsons-challenge/issues)
+- **Question?** [Start a discussion](https://github.com/AiIkram/gnn-parkinsons-challenge/discussions)
+- **Improvement?** Submit a PR
+
+---
+
+## 📝 Citation
+
+```bibtex
+@misc{gnn_parkinsons_challenge2025,
+  title={GNN Mini-Challenge: Parkinson's Disease Detection},
+  author={Aissiou Ikram},
+  year={2025},
+  url={https://github.com/AiIkram/gnn-parkinsons-challenge}
 }
 ```
 
-### 2. Submission Requirements
-
-- ✅ **39 rows** (one per test node, node_id 0-38)
-- ✅ **2 columns**: `node_id`, `prediction`
-- ✅ **Binary predictions**: 0 (Healthy) or 1 (Parkinson's)
-- ✅ **No duplicates** in node_id
-- ✅ **CSV format** with comma delimiter
-
-### 3. Submit via Pull Request
-
-**Option A: Via GitHub Web Interface**
-1. Fork this repository
-2. Upload your CSV and metadata files to `submissions/`
-3. Create a Pull Request
-4. Wait for automatic validation and scoring
-5. Check the PR comments for your score
-
-**Option B: Via Git**
-```bash
-# Fork and clone
-git clone https://github.com/AiIkram/gnn-parkinsons-challenge.git
-cd gnn-parkinsons-challenge
-
-# Add your files
-cp your_submission.csv submissions/your_team_name.csv
-cp your_metadata.json submissions/your_team_name_metadata.json
-
-# Commit and push
-git add submissions/
-git commit -m "Add submission for team: your_team_name"
-git push origin main
-
-# Create Pull Request on GitHub
-```
-
-### 4. Automated Scoring
-
-When you submit a Pull Request:
-- 🤖 GitHub Actions automatically validates your CSV
-- 📊 Calculates your F1-Score (macro-averaged)
-- 💬 Comments on your PR with results
-- 🏆 After merge, updates the live leaderboard
-
-### 5. View Your Ranking
-
-Once merged, your score appears on the **[Live Leaderboard](https://AiIkram.github.io/gnn-parkinsons-challenge/leaderboard.html)** within minutes!
 ---
 
-## 💡 Tips for Success
+## 📧 Contact
 
-1. **Start with baselines**: Test with GCN/GAT before complex models
-2. **Validate locally**: Run `python scoring_script.py your_file.csv`
-3. **Check format**: Ensure exact CSV format (node_id, prediction)
-4. **Add metadata**: Helps others learn from your approach
-5. **Iterate**: Submit multiple times to improve your score
+- **Issues**: [GitHub Issues](https://github.com/AiIkram/gnn-parkinsons-challenge/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/AiIkram/gnn-parkinsons-challenge/discussions)
+- **Email**: [aissiouikram47@gmail.com](mailto:aissiouikram47@gmail.com)
 
 ---
 
-## 🔗 Quick Links
+## 📜 License
 
-- 🏆 **[Live Leaderboard](https://AiIkram.github.io/gnn-parkinsons-challenge/leaderboard.html)**
-- 📊 **[Competition Homepage](https://AiIkram.github.io/gnn-parkinsons-challenge/)**
-- 📂 **[GitHub Repository](https://github.com/AiIkram/gnn-parkinsons-challenge)**
-- 📖 **[Setup Guide](SETUP_GUIDE.md)**
-- 📋 **[Submission Rules](RULES.md)**
+MIT License - see [LICENSE](LICENSE) file.
+
+**Dataset License**: UCI Parkinson's Dataset - CC BY 4.0
 
 ---
 
-## 📞 Support
+<div align="center">
 
-Having issues? 
-1. Check [SETUP_INSTRUCTIONS.md](SETUP_INSTRUCTIONS.md)
-2. Review [example submissions](submissions/)
-3. Open an issue on GitHub
+### 🚀 Ready to start? 
 
----
+**[View Leaderboard](https://aiikram.github.io/gnn-parkinsons-challenge/leaderboard.html)** | **[Fork Repo](https://github.com/AiIkram/gnn-parkinsons-challenge/fork)** | **[Submit Solution](https://github.com/AiIkram/gnn-parkinsons-challenge/pulls)**
 
-**Ready to compete? Submit your first entry today! 🚀**
+**Good luck! 🎉**
+
+</div>
