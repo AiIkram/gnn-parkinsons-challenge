@@ -1,0 +1,3 @@
+team,score,model,date,notes
+Baseline-GCN,0.7654,GCN,2025-01-05,Initial baseline
+Baseline-GAT,0.7521,GAT,2025-01-05,Attention-based

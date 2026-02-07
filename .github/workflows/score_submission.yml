@@ -3,18 +3,14 @@ name: Score Submission
 on:
   pull_request:
     paths:
-      - 'submissions/*.csv'
+      - 'submissions/inbox/**'
 
 jobs:
   score:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
-      with:
-        ref: ${{ github.event.pull_request.head.ref }}
-        fetch-depth: 0
+    - uses: actions/checkout@v3
     
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -23,110 +19,26 @@ jobs:
     
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
         pip install pandas scikit-learn numpy
     
-    - name: Find new submission
-      id: find_submission
+    - name: Validate and Score
+      env:
+        TEST_LABELS: ${{ secrets.TEST_LABELS }}
       run: |
-        # Get list of changed CSV files in submissions/
-        CHANGED_FILES=$(git diff --name-only origin/main HEAD | grep '^submissions/.*\.csv$' || true)
-        
-        if [ -z "$CHANGED_FILES" ]; then
-          echo "No submission files found"
-          echo "found=false" >> $GITHUB_OUTPUT
-        else
-          # Take the first submission file
-          SUBMISSION_FILE=$(echo "$CHANGED_FILES" | head -n 1)
-          echo "Submission file: $SUBMISSION_FILE"
-          echo "found=true" >> $GITHUB_OUTPUT
-          echo "file=$SUBMISSION_FILE" >> $GITHUB_OUTPUT
-          
-          # Extract participant name from filename
-          PARTICIPANT=$(basename "$SUBMISSION_FILE" .csv)
-          echo "participant=$PARTICIPANT" >> $GITHUB_OUTPUT
-        fi
+        echo "$TEST_LABELS" > /tmp/ground_truth.csv
+        python competition/evaluate.py \
+          --submission submissions/inbox/**/predictions.csv \
+          --ground_truth /tmp/ground_truth.csv \
+          --test_nodes data/public/test_nodes.csv
     
-    - name: Validate and score submission
-      if: steps.find_submission.outputs.found == 'true'
-      id: score
-      run: |
-        python scripts/scoring_script.py "${{ steps.find_submission.outputs.file }}" > score_output.txt
-        cat score_output.txt
-        
-        # Extract the F1 score from the output
-        SCORE=$(grep "Macro F1-Score:" score_output.txt | awk '{print $3}')
-        echo "score=$SCORE" >> $GITHUB_OUTPUT
-        
-        # Check if scoring was successful
-        if [ -z "$SCORE" ]; then
-          echo "failed=true" >> $GITHUB_OUTPUT
-          exit 1
-        else
-          echo "failed=false" >> $GITHUB_OUTPUT
-        fi
-    
-    - name: Update leaderboard
-      if: steps.find_submission.outputs.found == 'true' && steps.score.outputs.failed == 'false'
-      run: |
-        python scripts/update_leaderboard.py \
-          "${{ steps.find_submission.outputs.participant }}" \
-          "${{ steps.score.outputs.score }}" \
-          --model "GNN"
-    
-    - name: Commit leaderboard update
-      if: steps.find_submission.outputs.found == 'true' && steps.score.outputs.failed == 'false'
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add leaderboard.json
-        git commit -m "Update leaderboard: ${{ steps.find_submission.outputs.participant }} - ${{ steps.score.outputs.score }}" || echo "No changes to commit"
-        git push
-    
-    - name: Comment on PR
-      if: steps.find_submission.outputs.found == 'true'
+    - name: Comment Score
       uses: actions/github-script@v6
       with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
           const fs = require('fs');
-          const scoreOutput = fs.readFileSync('score_output.txt', 'utf8');
-          
-          const participant = '${{ steps.find_submission.outputs.participant }}';
-          const score = '${{ steps.score.outputs.score }}';
-          const failed = '${{ steps.score.outputs.failed }}' === 'true';
-          
-          let comment;
-          if (failed) {
-            comment = `## ❌ Submission Failed
-            
-**Participant:** ${participant}
-
-**Error:**
-\`\`\`
-${scoreOutput}
-\`\`\`
-
-Please check your submission format and try again.`;
-          } else {
-            comment = `## ✅ Submission Scored Successfully!
-            
-**Participant:** ${participant}
-**Macro F1-Score:** ${score}
-
-**Full Results:**
-\`\`\`
-${scoreOutput}
-\`\`\`
-
-🎉 Your submission has been added to the [leaderboard](https://aiikram.github.io/gnn-parkinsons-challenge/leaderboard.html)!
-
-Keep improving and try to beat the top score!`;
-          }
-          
           github.rest.issues.createComment({
             issue_number: context.issue.number,
             owner: context.repo.owner,
             repo: context.repo.repo,
-            body: comment
+            body: 'Submission scored! Check logs for results.'
           });

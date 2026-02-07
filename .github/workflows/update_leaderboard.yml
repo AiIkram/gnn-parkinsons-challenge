@@ -2,66 +2,33 @@ name: Update Leaderboard
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
     paths:
-      - 'submissions/**.csv'
-      - 'leaderboard.json'
-  workflow_dispatch:
-
-permissions:
-  contents: write
-  pages: write
-  id-token: write
+      - 'leaderboard/leaderboard.csv'
 
 jobs:
-  update-leaderboard:
+  update:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
-      with:
-        fetch-depth: 0
+    - uses: actions/checkout@v3
     
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10'
+        python-version: '3.8'
     
     - name: Install dependencies
+      run: pip install pandas
+    
+    - name: Render leaderboard
+      run: python competition/render_leaderboard.py
+    
+    - name: Commit changes
       run: |
-        python -m pip install --upgrade pip
-        pip install pandas scikit-learn numpy
-    
-    - name: Generate leaderboard HTML
-      run: |
-        python scripts/update_leaderboard.py
-    
-    - name: Commit and push if changed
-      run: |
-        git config --global user.name 'github-actions[bot]'
-        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-        git add docs/leaderboard.html docs/leaderboard.json
-        git diff --quiet && git diff --staged --quiet || (git commit -m "🤖 Auto-update leaderboard" && git push)
-  
-  deploy-pages:
-    needs: update-leaderboard
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
-      with:
-        ref: main
-    
-    - name: Setup Pages
-      uses: actions/configure-pages@v3
-    
-    - name: Upload artifact
-      uses: actions/upload-pages-artifact@v2
-      with:
-        path: 'docs'
-    
-    - name: Deploy to GitHub Pages
-      id: deployment
-      uses: actions/deploy-pages@v2
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add leaderboard/leaderboard.md
+        git diff --quiet && git diff --staged --quiet || git commit -m "Update leaderboard"
+        git push
