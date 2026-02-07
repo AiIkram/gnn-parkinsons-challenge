@@ -10,14 +10,32 @@ async function loadLeaderboard() {
         tableContainer.innerHTML = '<div class="loading">⏳ Loading...</div>';
         if (emptyState) emptyState.style.display = 'none';
         
-        const response = await fetch('../leaderboard/leaderboard.csv');
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        // FIX: Use correct path for GitHub Pages
+        // Try multiple paths to ensure it works both locally and on GitHub Pages
+        let csvUrl;
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            // Local development
+            csvUrl = '../leaderboard/leaderboard.csv';
+        } else {
+            // GitHub Pages - use raw GitHub URL
+            csvUrl = 'https://raw.githubusercontent.com/AiIkram/gnn-parkinsons-challenge/main/leaderboard/leaderboard.csv';
+        }
+        
+        console.log('Fetching leaderboard from:', csvUrl);
+        
+        const response = await fetch(csvUrl);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
         
         const csvText = await response.text();
+        console.log('CSV loaded, length:', csvText.length);
+        
         leaderboardData = parseCSV(csvText);
+        console.log('Parsed entries:', leaderboardData.length);
         
         if (leaderboardData.length === 0) {
-            tableContainer.innerHTML = '';
+            tableContainer.innerHTML = '<div class="loading" style="color: orange;">⚠️ No submissions yet</div>';
             if (emptyState) emptyState.style.display = 'block';
             updateStats(0, null, null);
         } else {
@@ -25,19 +43,32 @@ async function loadLeaderboard() {
             updateStatsBar();
         }
     } catch (error) {
-        console.error('Error:', error);
-        tableContainer.innerHTML = '<div class="loading" style="color: red;">❌ Error loading data</div>';
+        console.error('Error loading leaderboard:', error);
+        tableContainer.innerHTML = `
+            <div class="loading" style="color: red;">
+                ❌ Error loading data: ${error.message}<br>
+                <small>Check browser console for details</small>
+            </div>
+        `;
     }
 }
 
 function parseCSV(csv) {
     csv = csv.replace(/^\uFEFF/, '').trim();
-    if (!csv) return [];
+    if (!csv) {
+        console.warn('CSV is empty');
+        return [];
+    }
     
     const lines = csv.split(/\r?\n/).filter(line => line.trim());
-    if (lines.length <= 1) return [];
+    if (lines.length <= 1) {
+        console.warn('CSV has no data rows');
+        return [];
+    }
     
-    const headers = lines[0].split(',').map(h => h.trim());
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    console.log('CSV headers:', headers);
+    
     const data = [];
     
     for (let i = 1; i < lines.length; i++) {
@@ -47,12 +78,14 @@ function parseCSV(csv) {
             headers.forEach((header, idx) => {
                 obj[header] = values[idx] || '';
             });
+            // Must have at least team and score
             if (obj.team && obj.score) {
                 data.push(obj);
             }
         }
     }
     
+    console.log('Parsed data:', data);
     return data;
 }
 
@@ -86,9 +119,10 @@ function renderTable() {
         return matchesSearch && matchesModel;
     });
     
+    // Sort by score descending by default
     filtered.sort((a, b) => {
-        let aVal = sortColumn === 'score' ? parseFloat(a[sortColumn]) || 0 : a[sortColumn];
-        let bVal = sortColumn === 'score' ? parseFloat(b[sortColumn]) || 0 : b[sortColumn];
+        let aVal = sortColumn === 'score' ? parseFloat(a[sortColumn]) || 0 : (a[sortColumn] || '');
+        let bVal = sortColumn === 'score' ? parseFloat(b[sortColumn]) || 0 : (b[sortColumn] || '');
         
         if (aVal < bVal) return sortAsc ? -1 : 1;
         if (aVal > bVal) return sortAsc ? 1 : -1;
@@ -99,12 +133,12 @@ function renderTable() {
     table.innerHTML = `
         <thead>
             <tr>
-                <th onclick="sortBy('rank')">Rank</th>
-                <th onclick="sortBy('team')">Team</th>
-                <th onclick="sortBy('score')">Score (F1)</th>
-                <th onclick="sortBy('model')">Model</th>
-                <th onclick="sortBy('date')">Date</th>
-                <th>Notes</th>
+                <th onclick="sortBy('rank')" style="cursor: pointer;">Rank ↕️</th>
+                <th onclick="sortBy('team')" style="cursor: pointer;">Team ↕️</th>
+                <th onclick="sortBy('score')" style="cursor: pointer;">Score (F1) ↕️</th>
+                <th onclick="sortBy('model')" style="cursor: pointer;">Model ↕️</th>
+                <th onclick="sortBy('date')" style="cursor: pointer;">Date ↕️</th>
+                <th>Run ID</th>
             </tr>
         </thead>
         <tbody>
@@ -116,12 +150,12 @@ function renderTable() {
                 
                 return `
                     <tr>
-                        <td class="rank-cell rank-${rank}">${medal} ${rank}</td>
+                        <td class="rank-cell">${medal} ${rank}</td>
                         <td><strong>${escapeHtml(row.team || 'Unknown')}</strong></td>
                         <td class="score-cell">${scoreDisplay}</td>
                         <td>${escapeHtml(row.model || 'N/A')}</td>
                         <td>${escapeHtml(row.date || 'N/A')}</td>
-                        <td>${escapeHtml(row.notes || '-')}</td>
+                        <td>${escapeHtml(row.run_id || '-')}</td>
                     </tr>
                 `;
             }).join('')}
@@ -143,14 +177,19 @@ function sortBy(column) {
         sortAsc = !sortAsc;
     } else {
         sortColumn = column;
-        sortAsc = column === 'score' ? false : true;
+        sortAsc = column === 'score' ? false : true; // Score defaults to descending
     }
     renderTable();
 }
 
+// Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('Page loaded, initializing leaderboard...');
     loadLeaderboard();
+    
     document.getElementById('searchBox')?.addEventListener('input', renderTable);
     document.getElementById('modelFilter')?.addEventListener('change', renderTable);
+    
+    // Auto-refresh every 5 minutes
     setInterval(loadLeaderboard, 5 * 60 * 1000);
 });
