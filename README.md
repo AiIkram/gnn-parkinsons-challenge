@@ -1,4 +1,4 @@
-# 🧠 GNN Mini-Challenge: Parkinson's Disease Detection using Graph Neural Networks
+# 🧠 PARK-GNN Challenge: Parkinson's Disease Detection using Graph Neural Networks
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
@@ -10,14 +10,24 @@
 
 ## 🎯 Challenge Overview
 
-Welcome to the **GNN Parkinson's Disease Detection Challenge**! This competition focuses on using Graph Neural Networks (GNNs) to detect Parkinson's Disease from acoustic voice measurements.
+Welcome to the **PARK-GNN Challenge** (**P**arkinson’s **A**coustic **R**epresentation & **K**nowledge with **G**raph **N**eural **N**etworks).
 
-**Why GNNs?** Parkinson's Disease affects multiple interconnected biomarkers simultaneously. By modeling these relationships as a graph where:
-- **Nodes** represent individual voice recordings/patients
-- **Edges** connect similar patients or related acoustic features  
-- **Node features** contain voice measurements (jitter, shimmer, pitch, etc.)
+This mini-competition focuses on detecting **Parkinson’s Disease (PD)** from **acoustic voice measurements** using **Graph Neural Networks (GNNs)**.
 
-You can capture complex patterns that traditional ML methods might miss!
+### Why Graph Neural Networks?
+
+Parkinson’s Disease affects multiple vocal biomarkers **simultaneously and interdependently**. Traditional machine learning models treat samples as independent, ignoring these relationships.
+
+In this challenge, the problem is framed as a **graph learning task**, where:
+
+- **Nodes** represent individual voice recordings (or patients)
+- **Edges** encode similarity between patients or shared subject-level information
+- **Node features** consist of acoustic voice measurements  
+  (e.g., jitter, shimmer, pitch, harmonics, nonlinear features)
+
+By leveraging GNNs, participants can model **relational structure** in the data and capture patterns that classical tabular approaches may miss.
+
+---
 
 ### 🏆 Competition Details
 
