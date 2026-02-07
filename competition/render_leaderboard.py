@@ -4,7 +4,7 @@ from datetime import datetime
 
 def render_leaderboard():
     # Read CSV
-    df = pd.read_csv('leaderboard/leaderboard.csv')
+    df = pd.read_csv('docs/leaderboard.csv')
     
     # Sort by score descending
     df = df.sort_values('score', ascending=False).reset_index(drop=True)
