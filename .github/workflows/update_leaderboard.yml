@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'leaderboard/leaderboard.csv'
+      - 'docs/leaderboard.csv'
 
 jobs:
   update:
