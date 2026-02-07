@@ -15,10 +15,10 @@ async function loadLeaderboard() {
         let csvUrl;
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
             // Local development
-            csvUrl = '../leaderboard/leaderboard.csv';
+            csvUrl = './leaderboard.csv';
         } else {
             // GitHub Pages - use raw GitHub URL
-            csvUrl = 'https://raw.githubusercontent.com/AiIkram/gnn-parkinsons-challenge/main/leaderboard/leaderboard.csv';
+            csvUrl = './leaderboard.csv';
         }
         
         console.log('Fetching leaderboard from:', csvUrl);
