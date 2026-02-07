@@ -167,7 +167,8 @@ node_id,prediction
 | 🥈 2 | Baseline-GAT | 0.7521 | GAT | 2025-01-23 |
 | 🥉 3 | *---* | ??? | ??? | TBD |
 
-**👉 [View Full Live Leaderboard](https://aiikram.github.io/gnn-parkinsons-challenge/leaderboard.html)**
+*View full leaderboard in [leaderboard/leaderboard.md](leaderboard/leaderboard.md)*
+**🌐 Interactive Leaderboard**: [View Live](https://AiIkram.github.io/gnn-parkinsons-challenge/leaderboard.html)**
 
 ---
 
