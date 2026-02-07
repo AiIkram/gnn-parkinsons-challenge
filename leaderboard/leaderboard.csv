@@ -1,3 +1,3 @@
 team,score,model,date,notes
-Baseline-GCN,0.7654,GCN,2025-01-05,Initial baseline
-Baseline-GAT,0.7521,GAT,2025-01-05,Attention-based
+Baseline-GCN,0.7654,GCN,2025-02-07,Initial baseline with 2-layer GCN
+Baseline-GAT,0.7521,GAT,2025-02-07,Graph Attention Network baseline
