@@ -206,3 +206,9 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 data/test_labels.csv  data/test_labels.pkl 
+data/test_labels.pkl 
+data/test_labels_reference.csv 
+ 
+# Test labels (keep private) 
+data/test_labels.pkl 
+data/test_labels_reference.csv 
