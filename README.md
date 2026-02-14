@@ -169,19 +169,6 @@ node_id,prediction
 
 ---
 
-## 🏅 Current Leaderboard
-
-| Rank | Participant | F1-Score | Model | Date |
-|------|-------------|----------|-------|------|
-| 🥇 1 | Baseline-GCN | 0.7654 | GCN | 2025-01-23 |
-| 🥈 2 | Baseline-GAT | 0.7521 | GAT | 2025-01-23 |
-| 🥉 3 | *---* | ??? | ??? | TBD |
-
-*View full leaderboard in [leaderboard/leaderboard.md](leaderboard/leaderboard.md)*
-**🌐 Interactive Leaderboard**: [View Live](https://AiIkram.github.io/gnn-parkinsons-challenge/leaderboard.html)**
-
----
-
 ## 💡 Tips & Tricks
 
 ### For Beginners
