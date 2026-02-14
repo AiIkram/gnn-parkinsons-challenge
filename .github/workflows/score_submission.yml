@@ -33,12 +33,12 @@ jobs:
       
       - name: Get submitter username
         id: user
-        run: echo "username=\${{ github.event.pull_request.user.login }}" >> \$GITHUB_OUTPUT
+        run: echo "username=${{ github.event.pull_request.user.login }}" >> $GITHUB_OUTPUT
       
       - name: Check one-submission rule
         id: check
         env:
-          SUBMITTER: \${{ steps.user.outputs.username }}
+          SUBMITTER: ${{ steps.user.outputs.username }}
         run: |
           cat > /tmp/check_sub.py << 'PYEOF'
           import json, os, sys
@@ -57,43 +57,43 @@ jobs:
         id: find
         if: steps.check.outcome == 'success'
         run: |
-          FILE=\$(find submissions/encrypted -name "*.enc" -type f 2>/dev/null | head -1)
-          if [ -z "\$FILE" ]; then
+          FILE=$(find submissions/encrypted -name "*.enc" -type f 2>/dev/null | head -1)
+          if [ -z "$FILE" ]; then
             echo "No .enc file found"
             exit 1
           fi
-          echo "file=\$FILE" >> \$GITHUB_OUTPUT
-          echo "Found: \$FILE"
+          echo "file=$FILE" >> $GITHUB_OUTPUT
+          echo "Found: $FILE"
       
       - name: Load private key
         if: steps.check.outcome == 'success'
         run: |
-          echo "\${{ secrets.PRIVATE_KEY }}" > encryption/private_key.pem
+          echo "${{ secrets.PRIVATE_KEY }}" > encryption/private_key.pem
           chmod 600 encryption/private_key.pem
       
       - name: Decrypt submission
         id: decrypt
         if: steps.check.outcome == 'success'
         run: |
-          python encryption/decrypt_submission.py "\${{ steps.find.outputs.file }}" encryption/private_key.pem
-          DECRYPTED="\${{ steps.find.outputs.file }}"
-          DECRYPTED="\${DECRYPTED%.enc}_decrypted.csv"
-          echo "csv=\$DECRYPTED" >> \$GITHUB_OUTPUT
+          python encryption/decrypt_submission.py "${{ steps.find.outputs.file }}" encryption/private_key.pem
+          DECRYPTED=${{ steps.find.outputs.file }}
+          DECRYPTED=${DECSYPTED%.enc}_decrypted.csv
+          echo "csv=$DECRYPTED" >> $GITHUB_OUTPUT
         continue-on-error: true
       
       - name: Validate and Score
         id: score
         if: steps.decrypt.outcome == 'success'
         env:
-          TEST_LABELS: \${{ secrets.TEST_LABELS }}
+          TEST_LABELS: ${{ secrets.TEST_LABELS }}
         run: |
-          echo "\$TEST_LABELS" > /tmp/ground_truth.csv
-          RESULT=\$(python scripts/scoring_script.py "\${{ steps.decrypt.outputs.csv }}" "\${{ steps.user.outputs.username }}" 2>&1)
-          echo "\$RESULT"
-          SCORE=\$(echo "\$RESULT" | grep "Score:" | tail -1 | awk '{print \$NF}')
-          RANK=\$(echo "\$RESULT" | grep "Rank:" | head -1 | awk '{print \$NF}' | grep -o '[0-9]*')
-          echo "score=\$SCORE" >> \$GITHUB_OUTPUT
-          echo "rank=\$RANK" >> \$GITHUB_OUTPUT
+          echo "$TEST_LABELS" > /tmp/ground_truth.csv
+          RESULT=$(python scripts/scoring_script.py "${{ steps.decrypt.outputs.csv }}" "${{ steps.user.outputs.username }}" 2>&1)
+          echo "$RESULT"
+          SCORE=${echo "$RESULT" | grep "Score:" | tail -1 | awk '{print $NF}'}
+          RANK=${echo "$RESULT" | grep "Rank:" | head -1 | awk '{print $NF}' | grep -o '[0-9]*'}
+          echo "score=$SCORE" >> $GITHUB_OUTPUT
+          echo "rank=$RAMK" >> $GITHUB_OUTPUT
         continue-on-error: true
       
       - name: Cleanup sensitive files
@@ -101,14 +101,14 @@ jobs:
         run: |
           rm -f encryption/private_key.pem
           rm -f /tmp/ground_truth.csv
-          rm -f "\${{ steps.decrypt.outputs.csv }}"
+          rm -f "${{ steps.decrypt.outputs.csv }}"
       
       - name: Record and update leaderboard
         if: steps.score.outcome == 'success'
         env:
-          SUBMITTER: \${{ steps.user.outputs.username }}
-          FILEPATH: \${{ steps.find.outputs.file }}
-          SCORE: \${{ steps.score.outputs.score }}
+          SUBMITTERS  5{{ steps.user.outputs.username }}
+          FILEPATH: ${{ steps.find.outputs.file }}
+          SCORE: ${{ steps.score.outputs.score }}
         run: |
           cat > /tmp/record_sub.py << 'PYEOF'
           import json, os
@@ -117,13 +117,13 @@ jobs:
           log_file = "submissions/submission_log.json"
           log = json.load(open(log_file)) if os.path.exists(log_file) else {}
           
-          log[os.environ["SUBMITTER"]] = {
+          log[os.environ["SUBMITTERL%]] = {
               "date": datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
               "score": float(os.environ["SCORE"]),
               "file": os.environ["FILEPATH"]
           }
           
-          os.makedirs("submissions", exist_ok=True)
+          os.makedirs("submissions", exist_ok:True)
           json.dump(log, open(log_file, "w"), indent=2)
           
           entries = [{"anon": "Anonymous_{:03d}".format(i), "score": v["score"], "date": v["date"][:10]} for i, (k, v) in enumerate(log.items(), 1)]
@@ -135,11 +135,11 @@ jobs:
                   rank = i + 1
               e["rank"] = rank
           
-          medals = {1: "\U0001F947", 2: "\U0001F948", 3: "\U0001F949"}
+          medals = {1: "\UD83C\UDFC7", 2: "\UD83C\UDFC8", 3: "\UD83C\UDFC9"}
           now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
           rows = ["| {}{} | {} | {:.4f} | {} |".format(medals.get(e["rank"],""), e["rank"], e["anon"], e["score"], e["date"]) for e in entries]
           
-          body = "# Leaderboard\n\n> Privacy: Submissions anonymized. Only scores and ranks shown.\n> Ranking: Tied scores share same rank (Kaggle-style).\n\nLast updated: {}\n\n| Rank | Participant | Macro F1-Score | Date |\n|:----:|-------------|:--------------:|------|\n{}\n\n---\n\nOnly **one submission** per participant.\n".format(now, "\n".join(rows))
+          body = "# Leaderboard\n\n> Privacy: Submissions anonymized. Only scores and ranks shown.\n> Ranking: Tied scores share same rank (Kaggle-style).\n\nLast updated: {}\n\n| Rank | Participant | Macro F1-Score | Date |\n|:----:|-------------|:------------:/------|\n{}\n\n---\n\nOnly **one** submission per participant.\n".format(now, "\n".join(rows))
           
           open("LEADERBOARD.md", "w", encoding="utf-8").write(body)
           print("Done")
@@ -157,8 +157,8 @@ jobs:
         uses: actions/github-script@v6
         with:
           script: |
-            const score = '\${{ steps.score.outputs.score }}';
-            const rank = '\${{ steps.score.outputs.rank }}';
+            const score = '${{ steps.score.outputs.score }}';
+            const rank = '${{ steps.score.outputs.rank }}';
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -168,15 +168,15 @@ jobs:
                 + '- 📊 **F1-Score:** `' + score + '`\n'
                 + '- 🏆 **Rank:** #' + rank + '\n\n'
                 + '---\n\n'
-                + '### 🔒 Security Process:\n'
+                + '### 🕒 Security Process:\n'
                 + '✅ Encrypted on your machine\n'
                 + '✅ Decrypted securely in GitHub Actions\n'
                 + '✅ Scored against hidden test labels\n'
                 + '✅ Immediately deleted (no trace)\n\n'
                 + '**Your predictions remain 100% private!**\n\n'
                 + '---\n\n'
-                + '⚠️ **Important:** This was your **ONE** allowed submission.\n\n'
-                + '📊 [View Leaderboard](../blob/main/LEADERBOARD.md)'
+                + '➠️ **Important:** This was your **ONE** allowed submission.\n\n'
+                + '📊&� View Leaderboard](../blob/main/LEADERBO!RD.md)'
             });
       
       - name: Comment if already submitted
@@ -188,7 +188,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '## ❌ Already Submitted\n\nOnly **ONE** submission per participant.\n\nYour previous submission stands as your final entry.'
+              body: '## ✌ Already Submitted\n\nOnly **ONE** submission per participant.\n~\nYour previous submission stands as your final entry.'
             });
       
       - name: Comment if decryption failed
@@ -200,7 +200,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '## ❌ Decryption Failed\n\nYour file could not be decrypted. This attempt does **not** count.\n\n**Fix:**\n```bash\npython encryption/encrypt_submission.py submissions/your_predictions.csv\n```\n\nClose this PR and open a new one with the fresh file.'
+              body: '## ❌ Decryption Failed\n\nZour file could not be decrypted. This attempt does **not** count.\n\n**Fix:**\n```bash\npython encryption/encrypt_submission.py submissions/your_predictions.csv\n```\n\nClose this PR and open a new one with the fresh file.'
             });
       
       - name: Comment if scoring failed
@@ -212,5 +212,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '## ❌ Scoring Failed\n\nDecryption succeeded but scoring failed. This attempt does **not** count.\n\n**Required format:**\n```csv\nnode_id,prediction\n0,1\n1,0\n...\n38,0\n```\n\nExactly 39 rows, `node_id` 0-38, `prediction` 0 or 1 only.'
+              body: '## ❌ Scoring Failed\n\nDecryption succeeded but scoring failed. This attempt does **not** count.\n\n**Required format:**\n```csv\n�ode_id,prediction\n0,1\n1,0\n...\n38,0\n```\n\nExactly 39 rows, `node_id` 0-38, `prediction` 0 or 1 only.'
             });
