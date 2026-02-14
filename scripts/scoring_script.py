@@ -12,18 +12,41 @@ from pathlib import Path
 from datetime import datetime
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, roc_auc_score
 
-def load_ground_truth():
-    """Load ground truth labels from data directory"""
-    # Try multiple possible paths
+def load_ground_truth(ground_truth_path=None):
+    """Load ground truth labels"""
+    # If ground truth path is provided (from GitHub Actions secret)
+    if ground_truth_path and Path(ground_truth_path).exists():
+        print(f"✓ Loading ground truth from: {ground_truth_path}")
+        df = pd.read_csv(ground_truth_path)
+        
+        # Ensure correct column names
+        if 'node_id' in df.columns and 'label' in df.columns:
+            return df.sort_values('node_id').reset_index(drop=True)
+        elif len(df.columns) == 2:
+            df.columns = ['node_id', 'label']
+            return df.sort_values('node_id').reset_index(drop=True)
+    
+    # Try multiple possible paths for local testing
     possible_paths = [
         Path('data/test_labels.pkl'),
         Path('../data/test_labels.pkl'),
         Path('../../data/test_labels.pkl'),
+        Path('/tmp/ground_truth.csv'),
     ]
     
     for path in possible_paths:
         if path.exists():
             print(f"✓ Found ground truth at: {path}")
+            
+            # Handle CSV files
+            if path.suffix == '.csv':
+                df = pd.read_csv(path)
+                if 'node_id' not in df.columns or 'label' not in df.columns:
+                    if len(df.columns) == 2:
+                        df.columns = ['node_id', 'label']
+                return df.sort_values('node_id').reset_index(drop=True)
+            
+            # Handle pickle files
             with open(path, 'rb') as f:
                 labels = pickle.load(f)
             
@@ -42,7 +65,7 @@ def load_ground_truth():
     # If not found, return None
     print("❌ Error: Ground truth labels not found")
     print(f"\n📝 Note for challenge organizers:")
-    print(f"   Ground truth should be in: data/test_labels.pkl")
+    print(f"   Ground truth should be in: data/test_labels.pkl or /tmp/ground_truth.csv")
     print(f"   Current working directory: {Path.cwd()}")
     return None
 
@@ -75,9 +98,9 @@ def calculate_metrics(y_true, y_pred):
     """Calculate all evaluation metrics"""
     metrics = {
         'accuracy': accuracy_score(y_true, y_pred),
-        'f1_score': f1_score(y_true, y_pred),
-        'precision': precision_score(y_true, y_pred),
-        'recall': recall_score(y_true, y_pred),
+        'f1_score': f1_score(y_true, y_pred, zero_division=0),
+        'precision': precision_score(y_true, y_pred, zero_division=0),
+        'recall': recall_score(y_true, y_pred, zero_division=0),
     }
     
     # Try to calculate AUC if probabilities are available
@@ -88,74 +111,20 @@ def calculate_metrics(y_true, y_pred):
     
     return metrics
 
-def update_leaderboard(submission_name, metrics, submission_file):
-    """Update leaderboard JSON file"""
-    leaderboard_file = Path('leaderboard.json')
-    
-    # Load existing leaderboard
-    if leaderboard_file.exists():
-        with open(leaderboard_file, 'r') as f:
-            leaderboard = json.load(f)
-    else:
-        leaderboard = {'submissions': []}
-    
-    # Create new entry with all required fields
-    entry = {
-        'name': submission_name,
-        'date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'file': str(submission_file),
-        'accuracy': float(metrics['accuracy']),
-        'f1_score': float(metrics['f1_score']),
-        'precision': float(metrics['precision']),
-        'recall': float(metrics['recall'])
-    }
-    
-    # Add AUC if available
-    if metrics.get('auc_roc') is not None:
-        entry['auc_roc'] = float(metrics['auc_roc'])
-    
-    # Add or update entry
-    existing_idx = None
-    for i, sub in enumerate(leaderboard['submissions']):
-        if sub['name'] == submission_name:
-            existing_idx = i
-            break
-    
-    if existing_idx is not None:
-        leaderboard['submissions'][existing_idx] = entry
-    else:
-        leaderboard['submissions'].append(entry)
-    
-    # Sort by F1 score
-    leaderboard['submissions'].sort(key=lambda x: x['f1_score'], reverse=True)
-    
-    # Save updated leaderboard
-    with open(leaderboard_file, 'w') as f:
-        json.dump(leaderboard, f, indent=2)
-    
-    print(f"\n✓ Leaderboard updated: {leaderboard_file}")
-
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python scoring_script.py <submission_file> [--verbose] [--name <submission_name>]")
+        print("Usage: python scoring_script.py <submission_file> [submission_name] [ground_truth_file]")
         sys.exit(1)
     
     submission_file = Path(sys.argv[1])
-    verbose = '--verbose' in sys.argv
-    
-    # Get submission name
-    if '--name' in sys.argv:
-        name_idx = sys.argv.index('--name') + 1
-        submission_name = sys.argv[name_idx] if name_idx < len(sys.argv) else submission_file.stem
-    else:
-        submission_name = submission_file.stem
+    submission_name = sys.argv[2] if len(sys.argv) > 2 else submission_file.stem
+    ground_truth_file = sys.argv[3] if len(sys.argv) > 3 else None
     
     # Load submission
     try:
         submission_df = pd.read_csv(submission_file)
-        if verbose:
-            print(f"\n📄 Loaded submission: {submission_file}")
-            print(f"   Shape: {submission_df.shape}")
+        print(f"\n📄 Loaded submission: {submission_file}")
+        print(f"   Shape: {submission_df.shape}")
     except Exception as e:
         print(f"❌ Error loading submission: {e}")
         sys.exit(1)
@@ -168,18 +137,22 @@ def main():
             print(f"   - {error}")
         sys.exit(1)
     
-    if verbose:
-        print("✓ Submission format is valid")
+    print("✓ Submission format is valid")
     
     # Load ground truth
-    ground_truth = load_ground_truth()
+    ground_truth = load_ground_truth(ground_truth_file)
     if ground_truth is None:
         print("\n⚠️  Cannot score submission without ground truth labels.")
         print("   Your submission format is valid and ready to submit!")
         sys.exit(0)
     
     # Merge and calculate metrics
-    merged = submission_df.merge(ground_truth, on='node_id')
+    merged = submission_df.merge(ground_truth, on='node_id', how='inner')
+    
+    if len(merged) != 39:
+        print(f"❌ Error: Could only match {len(merged)}/39 predictions with ground truth")
+        sys.exit(1)
+    
     metrics = calculate_metrics(merged['label'], merged['prediction'])
     
     # Display results
@@ -187,24 +160,19 @@ def main():
     print(f"RESULTS FOR: {submission_name}")
     print("="*60)
     print(f"Accuracy:  {metrics['accuracy']:.4f}")
-    print(f"F1 Score:  {metrics['f1_score']:.4f}")
+    print(f"F1-Score:  {metrics['f1_score']:.4f}")
     print(f"Precision: {metrics['precision']:.4f}")
     print(f"Recall:    {metrics['recall']:.4f}")
     if metrics['auc_roc']:
         print(f"AUC-ROC:   {metrics['auc_roc']:.4f}")
     print("="*60)
     
-    # Update leaderboard
-    try:
-        update_leaderboard(submission_name, metrics, submission_file)
-    except Exception as e:
-        print(f"⚠️  Warning: Could not update leaderboard: {e}")
+    # For GitHub Actions - output in parseable format
+    print(f"\nScore: {metrics['f1_score']:.4f}")
+    print(f"Rank: 1")  # Placeholder - will be calculated by workflow
     
-    if verbose:
-        print("\n📊 Class distribution in predictions:")
-        print(submission_df['prediction'].value_counts())
-        print("\n📊 Class distribution in ground truth:")
-        print(ground_truth['label'].value_counts())
+    print("\n📊 Class distribution in predictions:")
+    print(submission_df['prediction'].value_counts())
 
 if __name__ == '__main__':
     main()
