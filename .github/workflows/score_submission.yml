@@ -37,11 +37,9 @@ jobs:
       
       - name: Check one-submission rule
         id: check
-        env:
-          SUBMITTER: ${{ steps.user.outputs.username }}
         run: |
           if [ -f "docs/leaderboard.csv" ]; then
-            if grep -q "^$SUBMITTER," docs/leaderboard.csv; then
+            if grep -q "^${{ steps.user.outputs.username }}," docs/leaderboard.csv; then
               echo "User already submitted"
               exit 1
             fi
@@ -83,9 +81,16 @@ jobs:
           TEST_LABELS: ${{ secrets.TEST_LABELS }}
         run: |
           echo "$TEST_LABELS" > /tmp/ground_truth.csv
-          RESULT=$(python scripts/scoring_script.py "${{ steps.decrypt.outputs.csv }}" "${{ steps.user.outputs.username }}" 2>&1)
+          RESULT=$(python scripts/scoring_script.py "${{ steps.decrypt.outputs.csv }}" "${{ steps.user.outputs.username }}" /tmp/ground_truth.csv 2>&1)
           echo "$RESULT"
           SCORE=$(echo "$RESULT" | grep "Score:" | tail -1 | awk '{print $NF}')
+          
+          # Check if score is empty or invalid
+          if [ -z "$SCORE" ] || [ "$SCORE" = "nan" ] || [ "$SCORE" = "NaN" ]; then
+            echo "Scoring failed - no valid score found"
+            exit 1
+          fi
+          
           echo "score=$SCORE" >> $GITHUB_OUTPUT
         continue-on-error: true
       
@@ -122,23 +127,25 @@ jobs:
         run: |
           python3 << 'PYEOF'
           import pandas as pd
+          import sys
           
-          df = pd.read_csv('docs/leaderboard.csv')
-          df = df.sort_values('score', ascending=False)
-          
-          # Assign ranks (Kaggle-style: same score = same rank)
-          df['rank'] = df['score'].rank(method='min', ascending=False).astype(int)
-          
-          username = "${{ steps.user.outputs.username }}"
-          user_rank = df[df['username'] == username]['rank'].values[0]
-          
-          print(f"rank={user_rank}")
-          with open('$GITHUB_OUTPUT', 'a') as f:
-              f.write(f"rank={user_rank}\n")
+          try:
+              df = pd.read_csv('docs/leaderboard.csv')
+              df = df.sort_values('score', ascending=False)
+              df['rank'] = df['score'].rank(method='min', ascending=False).astype(int)
+              
+              username = "${{ steps.user.outputs.username }}"
+              user_rank = df[df['username'] == username]['rank'].values[0]
+              
+              with open('$GITHUB_OUTPUT', 'a') as f:
+                  f.write(f"rank={user_rank}\n")
+          except Exception as e:
+              print(f"Error calculating rank: {e}")
+              sys.exit(1)
           PYEOF
       
       - name: Comment Score
-        if: steps.score.outcome == 'success'
+        if: steps.score.outcome == 'success' && steps.rank.outcome == 'success'
         uses: actions/github-script@v6
         with:
           script: |
@@ -197,5 +204,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '## ❌ Scoring Failed\n\nDecryption succeeded but scoring failed. This attempt does **not** count.\n\n**Required format:**\n```csv\nnode_id,prediction\n0,1\n1,0\n...\n38,0\n```\n\nExactly 39 rows, `node_id` 0-38, `prediction` 0 or 1 only.'
+              body: '## ❌ Scoring Failed\n\nDecryption succeeded but scoring failed. This attempt does **not** count.\n\n**Possible reasons:**\n- Ground truth labels not configured in GitHub Secrets\n- Invalid submission format\n\n**Required format:**\n```csv\nnode_id,prediction\n0,1\n1,0\n...\n38,0\n```\n\nExactly 39 rows, `node_id` 0-38, `prediction` 0 or 1 only.'
             });
