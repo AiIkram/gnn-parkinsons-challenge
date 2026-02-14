@@ -1,16 +1,17 @@
-name: Score Submission
+name: Encrypted Submission Scoring
 
 on:
   pull_request:
     paths:
-      - 'submissions/inbox/**'
+      - 'submissions/encrypted/*.enc'
 
 jobs:
   score:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout repository
+      uses: actions/checkout@v3
     
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -19,26 +20,157 @@ jobs:
     
     - name: Install dependencies
       run: |
-        pip install pandas scikit-learn numpy
+        pip install pandas scikit-learn numpy torch cryptography
     
-    - name: Validate and Score
+    - name: Get submitter username
+      id: user
+      run: |
+        echo "username=${{ github.event.pull_request.user.login }}" >> $GITHUB_OUTPUT
+    
+    - name: Check one-submission rule
+      id: check
+      run: |
+        python scripts/track_submissions.py "${{ steps.user.outputs.username }}"
+      continue-on-error: true
+    
+    - name: Find encrypted file
+      id: find
+      if: steps.check.outcome == 'success'
+      run: |
+        FILE=$(find submissions/encrypted -name "*.enc" -type f | head -1)
+        if [ -z "$FILE" ]; then
+          echo "No encrypted file found"
+          exit 1
+        fi
+        echo "file=$FILE" >> $GITHUB_OUTPUT
+    
+    - name: Load private key
+      if: steps.check.outcome == 'success'
+      run: |
+        echo "${{ secrets.PRIVATE_KEY }}" > encryption/private_key.pem
+        chmod 600 encryption/private_key.pem
+    
+    - name: Decrypt submission
+      id: decrypt
+      if: steps.check.outcome == 'success'
+      run: |
+        python encryption/decrypt_submission.py "${{ steps.find.outputs.file }}" encryption/private_key.pem
+        DECRYPTED="${{ steps.find.outputs.file }}"
+        DECRYPTED="${DECRYPTED%.enc}_decrypted.csv"
+        echo "csv=$DECRYPTED" >> $GITHUB_OUTPUT
+      continue-on-error: true
+    
+    - name: Score submission
+      id: score
+      if: steps.decrypt.outcome == 'success'
       env:
         TEST_LABELS: ${{ secrets.TEST_LABELS }}
       run: |
         echo "$TEST_LABELS" > /tmp/ground_truth.csv
-        python competition/evaluate.py \
-          --submission submissions/inbox/**/predictions.csv \
-          --ground_truth /tmp/ground_truth.csv \
-          --test_nodes data/public/test_nodes.csv
+        RESULT=$(python scripts/scoring_script.py "${{ steps.decrypt.outputs.csv }}" "${{ steps.user.outputs.username }}" 2>&1)
+        echo "$RESULT"
+        SCORE=$(echo "$RESULT" | grep "Score:" | tail -1 | awk '{print $NF}')
+        RANK=$(echo "$RESULT" | grep "Rank:" | awk '{print $2}')
+        echo "score=$SCORE" >> $GITHUB_OUTPUT
+        echo "rank=$RANK" >> $GITHUB_OUTPUT
+      continue-on-error: true
     
-    - name: Comment Score
+    - name: Cleanup
+      if: always()
+      run: |
+        rm -f encryption/private_key.pem
+        rm -f /tmp/ground_truth.csv
+        rm -f "${{ steps.decrypt.outputs.csv }}"
+    
+    - name: Record submission
+      if: steps.score.outcome == 'success'
+      run: |
+        python -c "from scripts.track_submissions import record_submission; record_submission('${{ steps.user.outputs.username }}', '${{ steps.find.outputs.file }}', ${{ steps.score.outputs.score }})"
+    
+    - name: Comment success
+      if: steps.score.outcome == 'success'
       uses: actions/github-script@v6
       with:
         script: |
-          const fs = require('fs');
           github.rest.issues.createComment({
             issue_number: context.issue.number,
             owner: context.repo.owner,
             repo: context.repo.repo,
-            body: 'Submission scored! Check logs for results.'
+            body: `## 🎯 Submission Scored!
+
+**Results:**
+- 📊 F1-Score: \`${{ steps.score.outputs.score }}\`
+- 🏆 Rank: #${{ steps.score.outputs.rank }}
+
+**Security:**
+✅ Encrypted → ✅ Decrypted → ✅ Scored → ✅ Deleted
+
+🔒 Your predictions are 100% private!
+
+⚠️ This was your ONE submission.
+
+Check [Leaderboard](../blob/main/LEADERBOARD.md)!`
+          });
+    
+    - name: Comment if decryption failed
+      if: steps.decrypt.outcome == 'failure'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `## ❌ Decryption Failed
+
+Re-encrypt and try again:
+
+\`\`\`bash
+python encryption/encrypt_submission.py submissions/your_predictions.csv
+\`\`\`
+
+This attempt does NOT count.`
+          });
+    
+    - name: Comment if already submitted
+      if: steps.check.outcome == 'failure'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `## ❌ Already Submitted
+
+You already submitted. Only ONE submission allowed.
+
+Your previous submission stands.`
+          });
+    
+    - name: Comment if scoring failed
+      if: steps.score.outcome == 'failure' && steps.decrypt.outcome == 'success'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `## ❌ Scoring Failed
+
+Format must be:
+\`\`\`csv
+node_id,prediction
+0,1
+1,0
+...
+38,0
+\`\`\`
+
+- Exactly 39 rows
+- node_id: 0-38
+- prediction: 0 or 1
+
+This attempt does NOT count.`
           });
