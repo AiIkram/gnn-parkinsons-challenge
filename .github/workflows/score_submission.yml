@@ -35,16 +35,7 @@ jobs:
         id: user
         run: echo "username=${{ github.event.pull_request.user.login }}" >> $GITHUB_OUTPUT
       
-      - name: Check one-submission rule
-        id: check
-        run: |
-          if [ -f "docs/leaderboard.csv" ]; then
-            if grep -q "^${{ steps.user.outputs.username }}," docs/leaderboard.csv; then
-              echo "User already submitted"
-              exit 1
-            fi
-          fi
-        continue-on-error: true
+     
       
       - name: Find encrypted file
         id: find
@@ -85,7 +76,6 @@ jobs:
           echo "$RESULT"
           SCORE=$(echo "$RESULT" | grep "Score:" | tail -1 | awk '{print $NF}')
           
-          # Check if score is empty or invalid
           if [ -z "$SCORE" ] || [ "$SCORE" = "nan" ] || [ "$SCORE" = "NaN" ]; then
             echo "Scoring failed - no valid score found"
             exit 1
@@ -105,14 +95,15 @@ jobs:
         if: steps.score.outcome == 'success'
         run: |
           mkdir -p docs
-          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
+          TIMESTAMP=$(date -u +"%Y-%m-%d")
           
-          # Create or append to CSV
+          # Create CSV with correct format if it doesn't exist
           if [ ! -f "docs/leaderboard.csv" ]; then
-            echo "username,score,date" > docs/leaderboard.csv
+            echo "team,score,model,date,notes" > docs/leaderboard.csv
           fi
           
-          echo "${{ steps.user.outputs.username }},${{ steps.score.outputs.score }},$TIMESTAMP" >> docs/leaderboard.csv
+          # Add entry: team=username, model=GNN (default), notes=GitHub username
+          echo "${{ steps.user.outputs.username }},${{ steps.score.outputs.score }},GNN,$TIMESTAMP,${{ steps.user.outputs.username }}" >> docs/leaderboard.csv
           
           # Commit and push
           git config user.name "github-actions[bot]"
@@ -135,7 +126,7 @@ jobs:
               df['rank'] = df['score'].rank(method='min', ascending=False).astype(int)
               
               username = "${{ steps.user.outputs.username }}"
-              user_rank = df[df['username'] == username]['rank'].values[0]
+              user_rank = df[df['team'] == username]['rank'].values[0]
               
               with open('$GITHUB_OUTPUT', 'a') as f:
                   f.write(f"rank={user_rank}\n")
