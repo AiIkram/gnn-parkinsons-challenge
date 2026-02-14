@@ -4,37 +4,38 @@ on:
   pull_request:
     paths:
       - 'submissions/encrypted/**'
+    types: [opened, synchronize, reopened]
 
 jobs:
   score:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
       with:
         fetch-depth: 2
-    
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.8'
-    
+
     - name: Install dependencies
       run: |
         pip install pandas scikit-learn numpy torch cryptography
-    
+
     - name: Get submitter username
       id: user
       run: |
         echo "username=${{ github.event.pull_request.user.login }}" >> $GITHUB_OUTPUT
-    
+
     - name: Check one-submission rule
       id: check
       run: |
         python scripts/track_submissions.py "${{ steps.user.outputs.username }}"
       continue-on-error: true
-    
+
     - name: Find encrypted file
       id: find
       if: steps.check.outcome == 'success'
@@ -47,14 +48,14 @@ jobs:
         fi
         echo "file=$FILE" >> $GITHUB_OUTPUT
         echo "Found: $FILE"
-    
+
     - name: Load private key
       if: steps.check.outcome == 'success'
       run: |
         echo "${{ secrets.PRIVATE_KEY }}" > encryption/private_key.pem
         chmod 600 encryption/private_key.pem
         echo "Private key loaded"
-    
+
     - name: Decrypt submission
       id: decrypt
       if: steps.check.outcome == 'success'
@@ -65,7 +66,7 @@ jobs:
         echo "csv=$DECRYPTED" >> $GITHUB_OUTPUT
         echo "Decrypted to: $DECRYPTED"
       continue-on-error: true
-    
+
     - name: Validate and Score
       id: score
       if: steps.decrypt.outcome == 'success'
@@ -80,7 +81,7 @@ jobs:
         echo "score=$SCORE" >> $GITHUB_OUTPUT
         echo "rank=$RANK" >> $GITHUB_OUTPUT
       continue-on-error: true
-    
+
     - name: Cleanup
       if: always()
       run: |
@@ -88,65 +89,39 @@ jobs:
         rm -f /tmp/ground_truth.csv
         rm -f "${{ steps.decrypt.outputs.csv }}"
         echo "Cleaned up sensitive files"
-    
+
     - name: Record submission
       if: steps.score.outcome == 'success'
       run: |
-        python -c "from scripts.track_submissions import record_submission; record_submission('${{ steps.user.outputs.username }}', '${{ steps.find.outputs.file }}', ${{ steps.score.outputs.score }})"
-    
+        python scripts/track_submissions.py --record "${{ steps.user.outputs.username }}" "${{ steps.find.outputs.file }}" "${{ steps.score.outputs.score }}"
+
     - name: Comment Score
       if: steps.score.outcome == 'success'
       uses: actions/github-script@v6
       with:
         script: |
+          const score = '${{ steps.score.outputs.score }}';
+          const rank = '${{ steps.score.outputs.rank }}';
           github.rest.issues.createComment({
             issue_number: context.issue.number,
             owner: context.repo.owner,
             repo: context.repo.repo,
-            body: `## 🎯 Submission Scored Successfully!
-
-**Your Results:**
-- 📊 **F1-Score:** \`${{ steps.score.outputs.score }}\`
-- 🏆 **Rank:** #${{ steps.score.outputs.rank }}
-
----
-
-### 🔒 Security Process:
-✅ Encrypted on your machine  
-✅ Decrypted securely in GitHub Actions  
-✅ Scored against hidden test labels  
-✅ Immediately deleted (no trace)
-
-**Your predictions remain 100% private!**
-
----
-
-⚠️ **Important:** This was your **ONE** allowed submission.
-
-📊 [View Leaderboard](../blob/main/LEADERBOARD.md)`
+            body: '## \uD83C\uDFAF Submission Scored Successfully!\n\n'
+              + '**Your Results:**\n'
+              + '- \uD83D\uDCCA **F1-Score:** `' + score + '`\n'
+              + '- \uD83C\uDFC6 **Rank:** #' + rank + '\n\n'
+              + '---\n\n'
+              + '### \uD83D\uDD12 Security Process:\n'
+              + '\u2705 Encrypted on your machine\n'
+              + '\u2705 Decrypted securely in GitHub Actions\n'
+              + '\u2705 Scored against hidden test labels\n'
+              + '\u2705 Immediately deleted (no trace)\n\n'
+              + '**Your predictions remain 100% private!**\n\n'
+              + '---\n\n'
+              + '\u26A0\uFE0F **Important:** This was your **ONE** allowed submission.\n\n'
+              + '\uD83D\uDCCA [View Leaderboard](../blob/main/LEADERBOARD.md)'
           });
-    
-    - name: Comment if decryption failed
-      if: steps.decrypt.outcome == 'failure'
-      uses: actions/github-script@v6
-      with:
-        script: |
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: `## ❌ Decryption Failed
 
-Your file could not be decrypted.
-
-**Fix:**
-\`\`\`bash
-python encryption/encrypt_submission.py submissions/your_predictions.csv
-\`\`\`
-
-This attempt does NOT count.`
-          });
-    
     - name: Comment if already submitted
       if: steps.check.outcome == 'failure'
       uses: actions/github-script@v6
@@ -156,13 +131,29 @@ This attempt does NOT count.`
             issue_number: context.issue.number,
             owner: context.repo.owner,
             repo: context.repo.repo,
-            body: `## ❌ Already Submitted
-
-Only ONE submission per participant.
-
-Your previous submission stands.`
+            body: '## \u274C Already Submitted\n\n'
+              + 'Only **ONE** submission per participant.\n\n'
+              + 'Your previous submission stands as your final entry.'
           });
-    
+
+    - name: Comment if decryption failed
+      if: steps.decrypt.outcome == 'failure'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: '## \u274C Decryption Failed\n\n'
+              + 'Your file could not be decrypted. This attempt does **not** count.\n\n'
+              + '**Fix:**\n'
+              + '```bash\n'
+              + 'python encryption/encrypt_submission.py submissions/your_predictions.csv\n'
+              + '```\n\n'
+              + 'Close this PR and open a new one with the fresh file.'
+          });
+
     - name: Comment if scoring failed
       if: steps.score.outcome == 'failure' && steps.decrypt.outcome == 'success'
       uses: actions/github-script@v6
@@ -172,16 +163,15 @@ Your previous submission stands.`
             issue_number: context.issue.number,
             owner: context.repo.owner,
             repo: context.repo.repo,
-            body: `## ❌ Scoring Failed
-
-Required format:
-\`\`\`csv
-node_id,prediction
-0,1
-1,0
-...
-38,0
-\`\`\`
-
-This attempt does NOT count.`
+            body: '## \u274C Scoring Failed\n\n'
+              + 'Decryption succeeded but scoring failed. This attempt does **not** count.\n\n'
+              + '**Required format:**\n'
+              + '```csv\n'
+              + 'node_id,prediction\n'
+              + '0,1\n'
+              + '1,0\n'
+              + '...\n'
+              + '38,0\n'
+              + '```\n\n'
+              + 'Rules: exactly 39 rows, `node_id` 0-38, `prediction` 0 or 1 only.'
           });
