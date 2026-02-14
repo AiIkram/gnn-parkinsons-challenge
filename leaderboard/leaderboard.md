@@ -1,3 +1,6 @@
 # 🏆 Leaderboard
 
-This file is auto-generated. Do not edit manually.
+Last updated: 2026-02-14 16:06:15
+
+| Rank | Team | Score | Model | Date |
+|------|------|-------|-------|------|
