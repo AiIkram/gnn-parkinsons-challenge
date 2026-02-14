@@ -35,7 +35,16 @@ jobs:
         id: user
         run: echo "username=${{ github.event.pull_request.user.login }}" >> $GITHUB_OUTPUT
       
-     
+      - name: Check one-submission rule
+        id: check
+        run: |
+          if [ -f "docs/leaderboard.csv" ]; then
+            if grep -q "^${{ steps.user.outputs.username }}," docs/leaderboard.csv; then
+              echo "User already submitted"
+              exit 1
+            fi
+          fi
+        continue-on-error: true
       
       - name: Find encrypted file
         id: find
