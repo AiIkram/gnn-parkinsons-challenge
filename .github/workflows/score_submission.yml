@@ -1,9 +1,9 @@
-name: Encrypted Submission Scoring
+name: Score Submission
 
 on:
   pull_request:
     paths:
-      - 'submissions/encrypted/*.enc'
+      - 'submissions/encrypted/**'
 
 jobs:
   score:
@@ -12,6 +12,8 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
+      with:
+        fetch-depth: 2
     
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -37,18 +39,21 @@ jobs:
       id: find
       if: steps.check.outcome == 'success'
       run: |
-        FILE=$(find submissions/encrypted -name "*.enc" -type f | head -1)
+        FILE=$(find submissions/encrypted -name "*.enc" -type f 2>/dev/null | head -1)
         if [ -z "$FILE" ]; then
-          echo "No encrypted file found"
+          echo "No encrypted file found in submissions/encrypted/"
+          ls -la submissions/encrypted/ || echo "Directory does not exist"
           exit 1
         fi
         echo "file=$FILE" >> $GITHUB_OUTPUT
+        echo "Found: $FILE"
     
     - name: Load private key
       if: steps.check.outcome == 'success'
       run: |
         echo "${{ secrets.PRIVATE_KEY }}" > encryption/private_key.pem
         chmod 600 encryption/private_key.pem
+        echo "Private key loaded"
     
     - name: Decrypt submission
       id: decrypt
@@ -58,9 +63,10 @@ jobs:
         DECRYPTED="${{ steps.find.outputs.file }}"
         DECRYPTED="${DECRYPTED%.enc}_decrypted.csv"
         echo "csv=$DECRYPTED" >> $GITHUB_OUTPUT
+        echo "Decrypted to: $DECRYPTED"
       continue-on-error: true
     
-    - name: Score submission
+    - name: Validate and Score
       id: score
       if: steps.decrypt.outcome == 'success'
       env:
@@ -70,7 +76,7 @@ jobs:
         RESULT=$(python scripts/scoring_script.py "${{ steps.decrypt.outputs.csv }}" "${{ steps.user.outputs.username }}" 2>&1)
         echo "$RESULT"
         SCORE=$(echo "$RESULT" | grep "Score:" | tail -1 | awk '{print $NF}')
-        RANK=$(echo "$RESULT" | grep "Rank:" | awk '{print $2}')
+        RANK=$(echo "$RESULT" | grep "Rank:" | head -1 | awk '{print $NF}' | grep -o '[0-9]*')
         echo "score=$SCORE" >> $GITHUB_OUTPUT
         echo "rank=$RANK" >> $GITHUB_OUTPUT
       continue-on-error: true
@@ -81,13 +87,14 @@ jobs:
         rm -f encryption/private_key.pem
         rm -f /tmp/ground_truth.csv
         rm -f "${{ steps.decrypt.outputs.csv }}"
+        echo "Cleaned up sensitive files"
     
     - name: Record submission
       if: steps.score.outcome == 'success'
       run: |
         python -c "from scripts.track_submissions import record_submission; record_submission('${{ steps.user.outputs.username }}', '${{ steps.find.outputs.file }}', ${{ steps.score.outputs.score }})"
     
-    - name: Comment success
+    - name: Comment Score
       if: steps.score.outcome == 'success'
       uses: actions/github-script@v6
       with:
@@ -96,20 +103,27 @@ jobs:
             issue_number: context.issue.number,
             owner: context.repo.owner,
             repo: context.repo.repo,
-            body: `## 🎯 Submission Scored!
+            body: `## 🎯 Submission Scored Successfully!
 
-**Results:**
-- 📊 F1-Score: \`${{ steps.score.outputs.score }}\`
-- 🏆 Rank: #${{ steps.score.outputs.rank }}
+**Your Results:**
+- 📊 **F1-Score:** \`${{ steps.score.outputs.score }}\`
+- 🏆 **Rank:** #${{ steps.score.outputs.rank }}
 
-**Security:**
-✅ Encrypted → ✅ Decrypted → ✅ Scored → ✅ Deleted
+---
 
-🔒 Your predictions are 100% private!
+### 🔒 Security Process:
+✅ Encrypted on your machine  
+✅ Decrypted securely in GitHub Actions  
+✅ Scored against hidden test labels  
+✅ Immediately deleted (no trace)
 
-⚠️ This was your ONE submission.
+**Your predictions remain 100% private!**
 
-Check [Leaderboard](../blob/main/LEADERBOARD.md)!`
+---
+
+⚠️ **Important:** This was your **ONE** allowed submission.
+
+📊 [View Leaderboard](../blob/main/LEADERBOARD.md)`
           });
     
     - name: Comment if decryption failed
@@ -123,8 +137,9 @@ Check [Leaderboard](../blob/main/LEADERBOARD.md)!`
             repo: context.repo.repo,
             body: `## ❌ Decryption Failed
 
-Re-encrypt and try again:
+Your file could not be decrypted.
 
+**Fix:**
 \`\`\`bash
 python encryption/encrypt_submission.py submissions/your_predictions.csv
 \`\`\`
@@ -143,7 +158,7 @@ This attempt does NOT count.`
             repo: context.repo.repo,
             body: `## ❌ Already Submitted
 
-You already submitted. Only ONE submission allowed.
+Only ONE submission per participant.
 
 Your previous submission stands.`
           });
@@ -159,7 +174,7 @@ Your previous submission stands.`
             repo: context.repo.repo,
             body: `## ❌ Scoring Failed
 
-Format must be:
+Required format:
 \`\`\`csv
 node_id,prediction
 0,1
@@ -167,10 +182,6 @@ node_id,prediction
 ...
 38,0
 \`\`\`
-
-- Exactly 39 rows
-- node_id: 0-38
-- prediction: 0 or 1
 
 This attempt does NOT count.`
           });
