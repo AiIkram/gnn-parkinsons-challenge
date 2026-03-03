@@ -8,9 +8,9 @@ import numpy as np
 from sklearn.metrics import f1_score
 from dgl.nn import GraphConv
 
-torch.manual_seed(42)
-np.random.seed(42)
-dgl.seed(42)
+torch.manual_seed(25)
+np.random.seed(25)
+dgl.seed(25)
 
 
 class GCNModel(nn.Module):
@@ -35,9 +35,9 @@ def load_data():
     This means the pkl files themselves have zero DGL dependency.
     """
     print("Loading data...")
-    with open('../data/train_graph_free.pkl', 'rb') as f:
+    with open('../data/public/train_graph_free.pkl', 'rb') as f:
         train_data = pickle.load(f)
-    with open('../data/test_graph_free.pkl', 'rb') as f:
+    with open('../data/public/test_graph_free.pkl', 'rb') as f:
         test_data = pickle.load(f)
 
     def rebuild_dgl_graph(d):
