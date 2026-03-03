@@ -41,9 +41,9 @@ def load_data():
     This means the pkl files themselves have zero DGL dependency.
     """
     print("Loading data...")
-    with open('../data/train_graph_free.pkl', 'rb') as f:
+    with open('../data/public/train_graph_free.pkl', 'rb') as f:
         train_data = pickle.load(f)
-    with open('../data/test_graph_free.pkl', 'rb') as f:
+    with open('../data/public/test_graph_free.pkl', 'rb') as f:
         test_data = pickle.load(f)
 
     def rebuild_dgl_graph(d):
