@@ -107,19 +107,17 @@ jobs:
           mkdir -p docs
           TIMESTAMP=$(date -u +"%Y-%m-%d")
           
-          # Create CSV with correct format if it doesn't exist
           if [ ! -f "docs/leaderboard.csv" ]; then
             echo "team,score,model,date,notes" > docs/leaderboard.csv
           fi
           
-          # Add entry: team=username, model=GNN (default), notes=GitHub username
           echo "${{ steps.user.outputs.username }},${{ steps.score.outputs.score }},GNN,$TIMESTAMP,${{ steps.user.outputs.username }}" >> docs/leaderboard.csv
           
-          # Commit and push
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add docs/leaderboard.csv
           git commit -m "Add submission for ${{ steps.user.outputs.username }}"
+          git pull origin main --rebase
           git push origin HEAD:main
       
       - name: Get rank
