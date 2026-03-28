@@ -143,7 +143,8 @@ function renderTable() {
         </thead>
         <tbody>
             ${filtered.map((row, idx) => {
-                const rank = idx + 1;
+                const score = parseFloat(row.score);
+                const rank = filtered.filter(r => parseFloat(r.score) > score).length + 1;
                 const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '';
                 const score = parseFloat(row.score);
                 const scoreDisplay = !isNaN(score) ? score.toFixed(4) : 'N/A';
