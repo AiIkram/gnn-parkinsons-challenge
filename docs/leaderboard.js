@@ -10,14 +10,10 @@ async function loadLeaderboard() {
         tableContainer.innerHTML = '<div class="loading">⏳ Loading...</div>';
         if (emptyState) emptyState.style.display = 'none';
         
-        // FIX: Use correct path for GitHub Pages
-        // Try multiple paths to ensure it works both locally and on GitHub Pages
         let csvUrl;
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-            // Local development
             csvUrl = './leaderboard.csv';
         } else {
-            // GitHub Pages - use raw GitHub URL
             csvUrl = './leaderboard.csv';
         }
         
@@ -78,7 +74,6 @@ function parseCSV(csv) {
             headers.forEach((header, idx) => {
                 obj[header] = values[idx] || '';
             });
-            // Must have at least team and score
             if (obj.team && obj.score) {
                 data.push(obj);
             }
@@ -119,7 +114,6 @@ function renderTable() {
         return matchesSearch && matchesModel;
     });
     
-    // Sort by score descending by default
     filtered.sort((a, b) => {
         let aVal = sortColumn === 'score' ? parseFloat(a[sortColumn]) || 0 : (a[sortColumn] || '');
         let bVal = sortColumn === 'score' ? parseFloat(b[sortColumn]) || 0 : (b[sortColumn] || '');
@@ -142,11 +136,10 @@ function renderTable() {
             </tr>
         </thead>
         <tbody>
-            ${filtered.map((row, idx) => {
+            ${filtered.map((row) => {
                 const score = parseFloat(row.score);
                 const rank = filtered.filter(r => parseFloat(r.score) > score).length + 1;
                 const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '';
-                const score = parseFloat(row.score);
                 const scoreDisplay = !isNaN(score) ? score.toFixed(4) : 'N/A';
                 
                 return `
@@ -178,12 +171,11 @@ function sortBy(column) {
         sortAsc = !sortAsc;
     } else {
         sortColumn = column;
-        sortAsc = column === 'score' ? false : true; // Score defaults to descending
+        sortAsc = column === 'score' ? false : true;
     }
     renderTable();
 }
 
-// Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Page loaded, initializing leaderboard...');
     loadLeaderboard();
@@ -191,6 +183,5 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('searchBox')?.addEventListener('input', renderTable);
     document.getElementById('modelFilter')?.addEventListener('change', renderTable);
     
-    // Auto-refresh every 5 minutes
     setInterval(loadLeaderboard, 5 * 60 * 1000);
 });
