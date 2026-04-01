@@ -28,19 +28,19 @@ jobs:
           git fetch origin pull/${{ github.event.pull_request.number }}/head:pr-branch
           git checkout pr-branch -- submissions/encrypted/
           git checkout main 2>/dev/null || git checkout -
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.8'
-      
+
       - name: Install dependencies
         run: pip install pandas scikit-learn numpy torch cryptography
-      
+
       - name: Get submitter username
         id: user
         run: echo "username=${{ github.event.pull_request.user.login }}" >> $GITHUB_OUTPUT
-      
+
       - name: Check one-submission rule
         id: check
         run: |
@@ -51,35 +51,38 @@ jobs:
             fi
           fi
         continue-on-error: true
-      
+
       - name: Find encrypted file
         id: find
         if: steps.check.outcome == 'success'
         run: |
-          FILE=$(find submissions/encrypted -name "*.enc" -type f 2>/dev/null | head -1)
+          USERNAME="${{ steps.user.outputs.username }}"
+          FILE=$(find submissions/encrypted -name "${USERNAME}.enc" -type f 2>/dev/null | head -1)
           if [ -z "$FILE" ]; then
-            echo "No .enc file found"
+            echo "No file named ${USERNAME}.enc found"
+            echo "file=" >> $GITHUB_OUTPUT
             exit 1
           fi
           echo "file=$FILE" >> $GITHUB_OUTPUT
           echo "Found: $FILE"
-      
+        continue-on-error: true
+
       - name: Load private key
-        if: steps.check.outcome == 'success'
+        if: steps.check.outcome == 'success' && steps.find.outcome == 'success'
         run: |
           echo "${{ secrets.PRIVATE_KEY }}" > encryption/private_key.pem
           chmod 600 encryption/private_key.pem
-      
+
       - name: Decrypt submission
         id: decrypt
-        if: steps.check.outcome == 'success'
+        if: steps.check.outcome == 'success' && steps.find.outcome == 'success'
         run: |
           python encryption/decrypt_submission.py "${{ steps.find.outputs.file }}" encryption/private_key.pem
           DECRYPTED="${{ steps.find.outputs.file }}"
           DECRYPTED="${DECRYPTED%.enc}_decrypted.csv"
           echo "csv=$DECRYPTED" >> $GITHUB_OUTPUT
         continue-on-error: true
-      
+
       - name: Validate and Score
         id: score
         if: steps.decrypt.outcome == 'success'
@@ -90,22 +93,20 @@ jobs:
           RESULT=$(python scripts/scoring_script.py "${{ steps.decrypt.outputs.csv }}" "${{ steps.user.outputs.username }}" /tmp/ground_truth.csv 2>&1)
           echo "$RESULT"
           SCORE=$(echo "$RESULT" | grep "Score:" | tail -1 | awk '{print $NF}')
-          
           if [ -z "$SCORE" ] || [ "$SCORE" = "nan" ] || [ "$SCORE" = "NaN" ]; then
             echo "Scoring failed - no valid score found"
             exit 1
           fi
-          
           echo "score=$SCORE" >> $GITHUB_OUTPUT
         continue-on-error: true
-      
+
       - name: Cleanup sensitive files
         if: always()
         run: |
           rm -f encryption/private_key.pem
           rm -f /tmp/ground_truth.csv
           rm -f "${{ steps.decrypt.outputs.csv }}"
-      
+
       - name: Save to leaderboard CSV
         if: steps.score.outcome == 'success'
         run: |
@@ -118,27 +119,21 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           for i in 1 2 3 4 5; do
-            # Always pull latest main before writing
             git fetch origin main
             git reset --hard origin/main
-
-            # Re-checkout the encrypted submission (lost after reset)
             git fetch origin pull/${{ github.event.pull_request.number }}/head:pr-branch
             git checkout pr-branch -- submissions/encrypted/
 
-            # Write to leaderboard
             if [ ! -f "docs/leaderboard.csv" ]; then
               echo "team,score,model,date,notes" > docs/leaderboard.csv
             fi
 
-            # Skip if user already exists (race condition guard)
             if grep -q "^${USERNAME}," docs/leaderboard.csv; then
               echo "Already in leaderboard, skipping."
               break
             fi
 
             echo "${USERNAME},${SCORE},GNN,${TIMESTAMP},${USERNAME}" >> docs/leaderboard.csv
-
             git add docs/leaderboard.csv
             git commit -m "Add submission for ${USERNAME}"
 
@@ -150,7 +145,7 @@ jobs:
               sleep 5
             fi
           done
-      
+
       - name: Get rank
         id: rank
         if: steps.score.outcome == 'success'
@@ -161,7 +156,6 @@ jobs:
           import sys
 
           try:
-              # Pull latest leaderboard after push
               df = pd.read_csv('docs/leaderboard.csv')
               df['score'] = pd.to_numeric(df['score'], errors='coerce')
               df = df.dropna(subset=['score'])
@@ -170,21 +164,18 @@ jobs:
 
               username = "${{ steps.user.outputs.username }}"
               match = df[df['team'] == username]
-
               if match.empty:
                   print(f"User {username} not found in leaderboard")
                   sys.exit(1)
 
               user_rank = int(match['rank'].values[0])
-
               with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
                   f.write(f"rank={user_rank}\n")
-
           except Exception as e:
               print(f"Error calculating rank: {e}")
               sys.exit(1)
           PYEOF
-      
+
       - name: Comment Score
         if: steps.score.outcome == 'success' && steps.rank.outcome == 'success'
         uses: actions/github-script@v6
@@ -211,7 +202,7 @@ jobs:
                 + '⚠️ **Important:** This was your **ONE** allowed submission.\n\n'
                 + '📊 [View Leaderboard](../blob/main/LEADERBOARD.md)'
             });
-      
+
       - name: Comment if already submitted
         if: steps.check.outcome == 'failure'
         uses: actions/github-script@v6
@@ -223,9 +214,36 @@ jobs:
               repo: context.repo.repo,
               body: '## ❌ Already Submitted\n\nOnly **ONE** submission per participant.\n\nYour previous submission stands as your final entry.'
             });
-      
+
+      - name: Comment if wrong filename
+        if: steps.check.outcome == 'success' && steps.find.outcome == 'failure'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const username = '${{ steps.user.outputs.username }}';
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '## ❌ Wrong File Name\n\n'
+                + 'Your submission file **must be named after your GitHub username**.\n\n'
+                + '**Required filename:** `' + username + '.enc`\n\n'
+                + '**Steps to fix:**\n'
+                + '```bash\n'
+                + '# 1. Encrypt your predictions\n'
+                + 'python encryption/encrypt_submission.py submissions/your_predictions.csv\n\n'
+                + '# 2. Rename the output file to your username\n'
+                + 'mv submissions/encrypted/your_predictions.enc submissions/encrypted/' + username + '.enc\n\n'
+                + '# 3. Add, commit and push\n'
+                + 'git add submissions/encrypted/' + username + '.enc\n'
+                + 'git commit -m "Add submission"\n'
+                + 'git push\n'
+                + '```\n\n'
+                + 'This attempt does **not** count. Close this PR and open a new one with the correctly named file.'
+            });
+
       - name: Comment if decryption failed
-        if: steps.decrypt.outcome == 'failure'
+        if: steps.find.outcome == 'success' && steps.decrypt.outcome == 'failure'
         uses: actions/github-script@v6
         with:
           script: |
@@ -235,7 +253,7 @@ jobs:
               repo: context.repo.repo,
               body: '## ❌ Decryption Failed\n\nYour file could not be decrypted. This attempt does **not** count.\n\n**Fix:**\n```bash\npython encryption/encrypt_submission.py submissions/your_predictions.csv\n```\n\nClose this PR and open a new one with the fresh file.'
             });
-      
+
       - name: Comment if scoring failed
         if: steps.score.outcome == 'failure' && steps.decrypt.outcome == 'success'
         uses: actions/github-script@v6
