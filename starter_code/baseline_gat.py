@@ -1,197 +1,435 @@
+"""
+Improved GAT for Parkinson's — Competition-Compliant Version
+=============================================================
+Rules enforced:
+  - Rule 6 : Single random seed = 25 everywhere (no ensemble of different seeds)
+  - Rule 7 : GNN only (GAT via PyTorch Geometric)
+  - Rule 8 : Hyperparameter budget = 5 runs max (tracked below)
+  - Rule 10: Loss + F1 plotted per epoch, saved to ./submissions/training_curve.png
+
+Hyperparameter runs log (Rule 8 — max 5):
+  Run 1: hidden=32, heads=4, dropout=0.5, lr=0.005, wd=5e-4  → baseline config
+  Run 2: hidden=64, heads=8, dropout=0.4, lr=0.005, wd=1e-3  → better capacity
+  Run 3: hidden=64, heads=8, dropout=0.6, lr=0.003, wd=1e-3  → more regularisation
+  Run 4: hidden=64, heads=4, dropout=0.4, lr=0.005, wd=5e-4  → fewer heads
+  Run 5: hidden=128,heads=8, dropout=0.4, lr=0.003, wd=1e-3  → largest model
+
+Usage:
+  python starter_code/inspect_data.py
+  python starter_code/baseline_gat.py
+"""
+
+import os
+import pickle
+
+import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import dgl
-import pickle
-import pandas as pd
-import numpy as np
-from sklearn.metrics import f1_score
-from dgl.nn import GATConv
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+from sklearn.metrics import f1_score, classification_report
+from torch_geometric.nn import GATConv, BatchNorm
+from torch_geometric.utils import add_self_loops, dropout_edge
 
-torch.manual_seed(25)
-np.random.seed(25)
-dgl.seed(25)
+# ── Rule 6: ALL seeds fixed to 25 ────────────────────────────────────────────
+SEED = 25
+torch.manual_seed(SEED)
+np.random.seed(SEED)
+# ─────────────────────────────────────────────────────────────────────────────
 
 
-class GATModel(nn.Module):
-    def __init__(self, in_feats, hidden_size, num_classes, num_heads=4, dropout=0.5):
-        super(GATModel, self).__init__()
-        self.conv1 = GATConv(
-            in_feats, hidden_size, num_heads=num_heads,
-            feat_drop=dropout, attn_drop=dropout, activation=F.elu
+# ---------------------------------------------------------------------------
+# Model
+# ---------------------------------------------------------------------------
+
+class ResidualGATBlock(nn.Module):
+    """GAT layer with residual connection + batch normalisation."""
+
+    def __init__(self, in_feats, out_feats, heads, dropout):
+        super().__init__()
+        self.conv = GATConv(
+            in_feats,
+            out_feats,
+            heads=heads,
+            dropout=dropout,
+            concat=True
         )
-        self.conv2 = GATConv(
-            hidden_size * num_heads, num_classes, num_heads=1,
-            feat_drop=dropout, attn_drop=dropout, activation=None
-        )
+        self.norm = BatchNorm(out_feats * heads)
         self.dropout = dropout
+        self.residual = (
+            nn.Linear(in_feats, out_feats * heads, bias=False)
+            if in_feats != out_feats * heads else nn.Identity()
+        )
 
-    def forward(self, g, features):
-        h = self.conv1(g, features)
-        h = h.flatten(1)
-        h = F.dropout(h, p=self.dropout, training=self.training)
-        h = self.conv2(g, h)
-        h = h.mean(1)
-        return h
+    def forward(self, x, edge_index):
+        out = F.elu(self.norm(self.conv(x, edge_index)))
+        out = F.dropout(out, p=self.dropout, training=self.training)
+        return out + self.residual(x)
 
+
+class ImprovedGATModel(nn.Module):
+    """
+    Two-block residual GAT:
+      input projection → ResidualGATBlock × 2 → MLP classifier
+    """
+
+    def __init__(self, in_feats, hidden_size=64, num_classes=2,
+                 num_heads=8, dropout=0.4, drop_edge=0.1):
+        super().__init__()
+        self.drop_edge = drop_edge
+
+        self.input_proj = nn.Sequential(
+            nn.Linear(in_feats, hidden_size),
+            nn.BatchNorm1d(hidden_size),
+            nn.ELU(),
+            nn.Dropout(dropout),
+        )
+
+        self.block1 = ResidualGATBlock(
+            hidden_size, hidden_size // num_heads, num_heads, dropout
+        )
+        self.block2 = ResidualGATBlock(
+            hidden_size, hidden_size // num_heads, num_heads, dropout
+        )
+
+        self.classifier = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size // 2),
+            nn.ELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_size // 2, num_classes),
+        )
+
+    def forward(self, x, edge_index):
+        if self.training and self.drop_edge > 0:
+            edge_index, _ = dropout_edge(
+                edge_index,
+                p=self.drop_edge,
+                training=self.training
+            )
+        x = self.input_proj(x)
+        x = self.block1(x, edge_index)
+        x = self.block2(x, edge_index)
+        return self.classifier(x)
+
+    def predict_proba(self, x, edge_index, n_passes=20):
+        """
+        Test-Time Augmentation: average softmax over n stochastic
+        forward passes (dropout kept ON).
+        """
+        self.train()   # keep dropout active
+        probs = []
+        with torch.no_grad():
+            for _ in range(n_passes):
+                probs.append(F.softmax(self(x, edge_index), dim=1))
+        self.eval()
+        return torch.stack(probs).mean(0)   # [N, C]
+
+
+# ---------------------------------------------------------------------------
+# Loss with label smoothing
+# ---------------------------------------------------------------------------
+
+class LabelSmoothingLoss(nn.Module):
+    """Cross-entropy with label smoothing + optional class weights."""
+
+    def __init__(self, num_classes=2, smoothing=0.1, weight=None):
+        super().__init__()
+        self.smoothing = smoothing
+        self.num_classes = num_classes
+        self.weight = weight
+
+    def forward(self, logits, targets):
+        log_probs = F.log_softmax(logits, dim=-1)
+        with torch.no_grad():
+            smooth = torch.full_like(
+                log_probs,
+                self.smoothing / (self.num_classes - 1)
+            )
+            smooth.scatter_(1, targets.unsqueeze(1), 1.0 - self.smoothing)
+
+        loss = -(smooth * log_probs).sum(dim=-1)
+        if self.weight is not None:
+            loss = loss * self.weight[targets]
+        return loss.mean()
+
+
+# ---------------------------------------------------------------------------
+# Data loading
+# ---------------------------------------------------------------------------
 
 def load_data():
-    print("Loading data...")
-
-    # ─────────────────────────────────────────────────────────────
-    # CHOOSE YOUR DATA FORMAT:
-    #   "free" → train_graph_free.pkl  (no DGL needed to load data)
-    #   "dgl"  → train_graph.pkl       (requires DGL installed)
-    DATA_FORMAT = "free"   # ← change to "dgl" if you prefer
-    # ─────────────────────────────────────────────────────────────
-
-    if DATA_FORMAT == "free":
-        with open('../data/public/train_graph_free.pkl', 'rb') as f:
-            train_data = pickle.load(f)
-        with open('../data/public/test_graph_free.pkl', 'rb') as f:
-            test_data = pickle.load(f)
-
-        def rebuild_dgl_graph(d):
-            src, dst = d["edge_index"]
-            g = dgl.graph((src, dst), num_nodes=d["num_nodes"])
-            d["graph"] = g
-            return d
-
-        train_data = rebuild_dgl_graph(train_data)
-        test_data  = rebuild_dgl_graph(test_data)
-        print("  Loaded DGL-free format (rebuilt graph at runtime)")
-
-    elif DATA_FORMAT == "dgl":
-        with open('../data/public/train_graph.pkl', 'rb') as f:
-            train_data = pickle.load(f)
-        with open('../data/public/test_graph.pkl', 'rb') as f:
-            test_data = pickle.load(f)
-        print("  Loaded DGL format")
-
+    enriched_path = './data/processed/train_enriched.pkl'
+    if os.path.exists(enriched_path):
+        print("Loading ENRICHED features (from inspect_data.py)...")
+        with open(enriched_path, 'rb') as f:
+            data = pickle.load(f)
+        print(f"  Feature dim: {data['feat_dim']}")
     else:
-        raise ValueError(f"Unknown DATA_FORMAT '{DATA_FORMAT}'. Choose 'free' or 'dgl'.")
+        print("Loading RAW features (tip: run inspect_data.py first)...")
+        with open('./data/public/train_graph_free.pkl', 'rb') as f:
+            data = pickle.load(f)
 
-    return train_data, test_data
+        src, dst = data['edge_index']
+        edge_index = torch.tensor(np.stack([src, dst], axis=0), dtype=torch.long)
+        edge_index, _ = add_self_loops(edge_index, num_nodes=data['num_nodes'])
+        data['edge_index_pyg'] = edge_index
+
+    return data
 
 
-def train_epoch(model, g, features, labels, train_mask, optimizer, class_weights):
+def to_tensor(x, dtype=torch.float32):
+    if isinstance(x, torch.Tensor):
+        return x.to(dtype)
+    return torch.tensor(np.array(x), dtype=dtype)
+
+
+# ---------------------------------------------------------------------------
+# Train / evaluate
+# ---------------------------------------------------------------------------
+
+def train_epoch(model, edge_index, features, labels, train_mask,
+                optimizer, criterion):
     model.train()
     optimizer.zero_grad()
-    logits = model(g, features)
-    loss = F.cross_entropy(logits[train_mask], labels[train_mask], weight=class_weights)
+
+    logits = model(features, edge_index)
+    loss = criterion(logits[train_mask], labels[train_mask])
+
     loss.backward()
+    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
     optimizer.step()
 
-    _, predicted = torch.max(logits[train_mask], 1)
-    train_acc = (predicted == labels[train_mask]).float().mean()
-    return loss.item(), train_acc.item()
+    preds = logits[train_mask].argmax(1)
+    acc = (preds == labels[train_mask]).float().mean().item()
+
+    return loss.item(), acc
 
 
-def evaluate(model, g, features, labels, mask):
+def evaluate(model, edge_index, features, labels, mask):
     model.eval()
     with torch.no_grad():
-        logits = model(g, features)
-        _, predicted = torch.max(logits[mask], 1)
-        accuracy = (predicted == labels[mask]).float().mean()
-        f1_macro = f1_score(
+        logits = model(features, edge_index)
+        loss = F.cross_entropy(logits[mask], labels[mask]).item()
+        preds = logits[mask].argmax(1)
+        f1 = f1_score(
             labels[mask].cpu().numpy(),
-            predicted.cpu().numpy(),
+            preds.cpu().numpy(),
             average='macro'
         )
-    return accuracy.item(), f1_macro
+    return loss, f1
 
+
+# ---------------------------------------------------------------------------
+# Plot training curves
+# ---------------------------------------------------------------------------
+
+def plot_curves(train_losses, val_losses, val_f1s, best_epoch, save_path):
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+    fig.suptitle("Training Curves — Parkinson's GAT", fontsize=14, fontweight='bold')
+
+    epochs = range(1, len(train_losses) + 1)
+
+    ax1.plot(epochs, train_losses, label='Train Loss', color='steelblue', linewidth=1.5)
+    ax1.plot(epochs, val_losses, label='Val Loss', color='tomato', linewidth=1.5)
+    ax1.axvline(best_epoch, color='green', linestyle='--', linewidth=1,
+                label=f'Best epoch ({best_epoch})')
+    ax1.set_xlabel('Epoch')
+    ax1.set_ylabel('Loss')
+    ax1.set_title('Loss (should flatten — watch for overfitting)')
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+
+    ax2.plot(epochs, val_f1s, label='Val Macro-F1', color='darkorange', linewidth=1.5)
+    ax2.axvline(best_epoch, color='green', linestyle='--', linewidth=1,
+                label=f'Best epoch ({best_epoch})')
+    ax2.set_xlabel('Epoch')
+    ax2.set_ylabel('Macro-F1')
+    ax2.set_title('Validation Macro-F1')
+    ax2.set_ylim(0, 1)
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"  Training curve saved → {save_path}")
+
+
+# ---------------------------------------------------------------------------
+# Main training loop
+# ---------------------------------------------------------------------------
 
 def main():
     print("=" * 60)
-    print("GNN Parkinson's Challenge - Baseline GAT Model")
+    print("GNN Parkinson's — Improved GAT (rule-compliant)")
+    print(f"  Seed: {SEED}  (Rule 6)")
     print("=" * 60)
 
-    train_data, test_data = load_data()
+    data = load_data()
 
-    g          = train_data['graph']
-    features   = train_data['features']
-    labels     = train_data['labels']
-    train_mask = train_data['train_mask']
-    val_mask   = train_data['val_mask']
+    edge_index = data['edge_index_pyg']
+    features = to_tensor(data['features'])
+    labels_raw = to_tensor(data['labels'], dtype=torch.long)
+    train_mask = to_tensor(data['train_mask'], dtype=torch.bool)
+    val_mask = to_tensor(data['val_mask'], dtype=torch.bool)
 
-    print(f"\nDataset Statistics:")
-    print(f"  Nodes: {g.num_nodes()}")
-    print(f"  Edges: {g.num_edges()}")
+    # Safe node_ids handling
+    raw_node_ids = data.get('node_ids', None)
+    if raw_node_ids is None:
+        print("node_ids not found in data -> using nodes where label == -1")
+        node_ids = torch.where(labels_raw == -1)[0]
+    else:
+        node_ids = torch.as_tensor(
+            np.asarray(raw_node_ids, dtype=np.int64),
+            dtype=torch.long
+        )
 
-    # ✅ Fix class imbalance with weighted loss
-    train_labels = labels[train_mask]
-    num_class0 = (train_labels == 0).sum().item()
-    num_class1 = (train_labels == 1).sum().item()
-    total = num_class0 + num_class1
-    w0 = total / (2 * num_class0)
-    w1 = total / (2 * num_class1)
-    class_weights = torch.FloatTensor([w0, w1])
-    print(f"  Class weights: Healthy={w0:.2f}, Parkinson's={w1:.2f}")
+    print(f"\nGraph summary:")
+    print(f"  Nodes         : {features.shape[0]}")
+    print(f"  Edges         : {edge_index.shape[1]}")
+    print(f"  Feature dim   : {features.shape[1]}")
+    print(f"  Train nodes   : {train_mask.sum().item()}")
+    print(f"  Val nodes     : {val_mask.sum().item()}")
+    print(f"  Test node_ids : {len(node_ids)}")
+    print(f"  Label -1 (test): {(labels_raw == -1).sum().item()}")
+    print(f"  Label  0 (hlth): {(labels_raw == 0).sum().item()}")
+    print(f"  Label  1 (pk's): {(labels_raw == 1).sum().item()}")
 
-    in_feats     = features.shape[1]
-    hidden_size  = 32
-    num_classes  = 2
-    num_heads    = 4
-    dropout      = 0.6
-    lr           = 0.005
-    weight_decay = 5e-4
-    num_epochs   = 250
+    # Class weights
+    train_labels = labels_raw[train_mask]
+    n0 = (train_labels == 0).sum().item()
+    n1 = (train_labels == 1).sum().item()
+    tot = n0 + n1
+    class_weights = torch.FloatTensor([tot / (2 * n0), tot / (2 * n1)])
 
-    print(f"\nModel: GAT with {num_heads} attention heads")
+    print(f"\n  Class weights: Healthy={class_weights[0]:.2f}, "
+          f"Parkinson's={class_weights[1]:.2f}")
 
-    model     = GATModel(in_feats, hidden_size, num_classes, num_heads, dropout)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    # Hyperparameters
+    HIDDEN = 64
+    HEADS = 8
+    DROPOUT = 0.4
+    DROP_EDGE = 0.1
+    LR = 0.005
+    WD = 1e-3
+    PATIENCE = 50
+    MAX_EPOCHS = 300
+    SMOOTHING = 0.1
 
-    print("\nTraining...")
+    model = ImprovedGATModel(
+        in_feats=features.shape[1],
+        hidden_size=HIDDEN,
+        num_classes=2,
+        num_heads=HEADS,
+        dropout=DROPOUT,
+        drop_edge=DROP_EDGE,
+    )
+
+    criterion = LabelSmoothingLoss(
+        num_classes=2,
+        smoothing=SMOOTHING,
+        weight=class_weights
+    )
+    optimizer = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=WD)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=MAX_EPOCHS, eta_min=1e-5
+    )
+
+    print(f"\nTraining (max {MAX_EPOCHS} epochs, early stopping patience={PATIENCE})...")
     print("-" * 60)
 
-    best_val_f1      = 0
-    patience_counter = 0
+    train_losses, val_losses, val_f1s = [], [], []
+    best_val_f1 = 0.0
+    best_epoch = 0
+    patience_ctr = 0
+    best_state = None
 
-    for epoch in range(num_epochs):
-        loss, train_acc = train_epoch(model, g, features, labels, train_mask, optimizer, class_weights)
-        val_acc, val_f1 = evaluate(model, g, features, labels, val_mask)
+    for epoch in range(1, MAX_EPOCHS + 1):
+        train_loss, train_acc = train_epoch(
+            model, edge_index, features, labels_raw,
+            train_mask, optimizer, criterion
+        )
+        val_loss, val_f1 = evaluate(
+            model, edge_index, features, labels_raw, val_mask
+        )
+        scheduler.step()
 
-        if (epoch + 1) % 10 == 0:
-            print(f"Epoch {epoch+1:3d} | Loss: {loss:.4f} | Val F1: {val_f1:.4f}")
+        train_losses.append(train_loss)
+        val_losses.append(val_loss)
+        val_f1s.append(val_f1)
+
+        if epoch % 10 == 0 or epoch == 1:
+            print(f"  Epoch {epoch:3d} | "
+                  f"train_loss={train_loss:.4f} | "
+                  f"val_loss={val_loss:.4f} | "
+                  f"val_f1={val_f1:.4f}")
 
         if val_f1 > best_val_f1:
-            best_val_f1      = val_f1
-            patience_counter = 0
-            torch.save(model.state_dict(), 'best_gat_model.pt')
+            best_val_f1 = val_f1
+            best_epoch = epoch
+            patience_ctr = 0
+            best_state = {k: v.clone() for k, v in model.state_dict().items()}
         else:
-            patience_counter += 1
+            patience_ctr += 1
 
-        if patience_counter >= 50:
-            print(f"\nEarly stopping at epoch {epoch+1}")
+        if patience_ctr >= PATIENCE:
+            print(f"\n  Early stopping triggered at epoch {epoch} "
+                  f"(best epoch={best_epoch})")
             break
 
-    print(f"\nBest Validation F1: {best_val_f1:.4f}")
+    print(f"\n  Best Val Macro-F1 : {best_val_f1:.4f}  (epoch {best_epoch})")
 
-    model.load_state_dict(torch.load('best_gat_model.pt'))
+    # Save training curves
+    os.makedirs('./submissions', exist_ok=True)
+    plot_curves(
+        train_losses, val_losses, val_f1s,
+        best_epoch, './submissions/training_curve.png'
+    )
 
-    print("\nGenerating predictions...")
-    test_g        = test_data['graph']
-    test_features = test_data['features']
-    test_node_ids = test_data['node_ids']  # numpy array of 39 node indices
+    # Load best weights
+    model.load_state_dict(best_state)
 
+    # Final validation report
     model.eval()
     with torch.no_grad():
-        test_logits = model(test_g, test_features)
-        # ✅ Only extract predictions for the 39 test node IDs
-        test_predictions = torch.max(test_logits[test_node_ids], 1)[1]
+        logits = model(features, edge_index)
+        val_preds = logits[val_mask].argmax(1).cpu().numpy()
+        val_labels = labels_raw[val_mask].cpu().numpy()
 
-    import os
-    os.makedirs('../submissions', exist_ok=True)
+    print("\nClassification Report (validation, best model):")
+    print(classification_report(
+        val_labels,
+        val_preds,
+        target_names=['Healthy', "Parkinson's"],
+        zero_division=0,
+    ))
+
+    # Test predictions
+    print("Generating test predictions (TTA × 20 stochastic passes)...")
+    probs = model.predict_proba(features, edge_index, n_passes=20)
+    test_preds = probs[node_ids].argmax(1).cpu().numpy()
+
     submission = pd.DataFrame({
-        'node_id':    test_node_ids,
-        'prediction': test_predictions.cpu().numpy()
+        'node_id': node_ids.cpu().numpy(),
+        'prediction': test_preds,
     })
+    submission.to_csv('./submissions/gat_submission.csv', index=False)
 
-    submission.to_csv('../submissions/gat_submission.csv', index=False)
-    print(f"Submission saved! {len(submission)} predictions.")
-    print(submission.head(10))
+    print(f"\nSubmission saved → ./submissions/gat_submission.csv")
+    counts = pd.Series(test_preds).value_counts().sort_index()
+    for cls, cnt in counts.items():
+        lbl = 'Healthy' if cls == 0 else "Parkinson's"
+        print(f"  {lbl} ({cls}): {cnt}  ({cnt / len(submission) * 100:.1f}%)")
+
+    print(submission.to_string(index=False))
     print("\n" + "=" * 60)
+    print("OUTPUTS:")
+    print("  ./submissions/gat_submission.csv   — predictions")
+    print("  ./submissions/training_curve.png   — loss/F1 plot (Rule 10)")
+    print("=" * 60)
 
 
 if __name__ == '__main__':
