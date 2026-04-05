@@ -122,6 +122,9 @@ function renderTable() {
         if (aVal > bVal) return sortAsc ? 1 : -1;
         return 0;
     });
+
+    // Dense ranking: build sorted list of unique scores
+    const uniqueScores = [...new Set(filtered.map(r => parseFloat(r.score)))].sort((a, b) => b - a);
     
     const table = document.createElement('table');
     table.innerHTML = `
@@ -138,7 +141,7 @@ function renderTable() {
         <tbody>
             ${filtered.map((row) => {
                 const score = parseFloat(row.score);
-                const rank = filtered.filter(r => parseFloat(r.score) > score).length + 1;
+                const rank = uniqueScores.indexOf(score) + 1;
                 const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '';
                 const scoreDisplay = !isNaN(score) ? score.toFixed(4) : 'N/A';
                 
