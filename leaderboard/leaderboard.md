@@ -1,16 +1,19 @@
 # 🏆 Leaderboard
 
-Last updated: 2026-04-04 11:19:20
+Last updated: 2026-04-05 07:50:42
 
 | Rank | Team | Score | Model | Date |
 |------|------|-------|-------|------|
 | 🥇 1 | gururgg | 0.9328 | GNN | 2026-04-01 |
-| 🥈 2 | emmakowu3579-ui | 0.9023 | GNN | 2026-04-01 |
-| 🥉 3 | mahatrabelsi1 | 0.8458 | GNN | 2026-04-01 |
-|  4 | bjayadikary | 0.8427 | GNN | 2026-04-01 |
-|  5 | Sargam1412 | 0.8371 | GNN | 2026-04-01 |
-|  6 | TugaAhmed | 0.7292 | GNN | 2026-04-04 |
-|  7 | Muhammad0isah | 0.7056 | GNN | 2026-04-02 |
-|  8 | Mubarraqqq | 0.6609 | GNN | 2026-04-01 |
-|  9 | samuelmatia | 0.6518 | GNN | 2026-04-01 |
-|  10 | El-Ikram | 0.2041 | GNN | 2026-04-03 |
+| 🥇 1 | abdksm | 0.9328 | GNN | 2026-04-04 |
+| 🥉 3 | emmakowu3579-ui | 0.9023 | GNN | 2026-04-01 |
+|  4 | mahatrabelsi1 | 0.8458 | GNN | 2026-04-01 |
+|  4 | SanaeZR | 0.8458 | GNN | 2026-04-04 |
+|  6 | bjayadikary | 0.8427 | GNN | 2026-04-01 |
+|  7 | Sargam1412 | 0.8371 | GNN | 2026-04-01 |
+|  8 | TugaAhmed | 0.7292 | GNN | 2026-04-04 |
+|  9 | Muhammad0isah | 0.7056 | GNN | 2026-04-02 |
+|  10 | Mubarraqqq | 0.6609 | GNN | 2026-04-01 |
+|  11 | samuelmatia | 0.6518 | GNN | 2026-04-01 |
+|  12 | idrees11 | 0.4265 | GNN | 2026-04-01 |
+|  13 | El-Ikram | 0.2041 | GNN | 2026-04-03 |
