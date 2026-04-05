@@ -1,6 +1,6 @@
 # 🏆 Leaderboard
 
-Last updated: 2026-04-05 07:50:42
+Last updated: 2026-04-05 11:00:00
 
 | Rank | Team | Score | Model | Date |
 |------|------|-------|-------|------|
@@ -15,5 +15,3 @@ Last updated: 2026-04-05 07:50:42
 |  9 | Muhammad0isah | 0.7056 | GNN | 2026-04-02 |
 |  10 | Mubarraqqq | 0.6609 | GNN | 2026-04-01 |
 |  11 | samuelmatia | 0.6518 | GNN | 2026-04-01 |
-|  12 | idrees11 | 0.4265 | GNN | 2026-04-01 |
-|  13 | El-Ikram | 0.2041 | GNN | 2026-04-03 |
