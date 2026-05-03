@@ -123,8 +123,8 @@ function renderTable() {
         return 0;
     });
 
-    // Dense ranking: build sorted list of unique scores
-    const uniqueScores = [...new Set(filtered.map(r => parseFloat(r.score)))].sort((a, b) => b - a);
+    // Kaggle-style: ranks computed from the full dataset, not the filtered view
+    const allScoresSorted = [...new Set(leaderboardData.map(r => parseFloat(r.score)))].sort((a, b) => b - a);
     
     const table = document.createElement('table');
     table.innerHTML = `
@@ -141,7 +141,7 @@ function renderTable() {
         <tbody>
             ${filtered.map((row) => {
                 const score = parseFloat(row.score);
-                const rank = uniqueScores.indexOf(score) + 1;
+                const rank = allScoresSorted.indexOf(score) + 1;
                 const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '';
                 const scoreDisplay = !isNaN(score) ? score.toFixed(4) : 'N/A';
                 
