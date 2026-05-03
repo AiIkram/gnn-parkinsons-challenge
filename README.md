@@ -10,13 +10,13 @@
 
 ## 🎯 Challenge Overview
 
-Welcome to the **PARK-GNN Challenge** (**P**arkinson’s **A**coustic **R**epresentation & **K**nowledge with **G**raph **N**eural **N**etworks).
+Welcome to the **PARK-GNN Challenge** (**P**arkinson's **A**coustic **R**epresentation & **K**nowledge with **G**raph **N**eural **N**etworks).
 
-This mini-competition focuses on detecting **Parkinson’s Disease (PD)** from **acoustic voice measurements** using **Graph Neural Networks (GNNs)**.
+This mini-competition focuses on detecting **Parkinson's Disease (PD)** from **acoustic voice measurements** using **Graph Neural Networks (GNNs)**.
 
 ### Why Graph Neural Networks?
 
-Parkinson’s Disease affects multiple vocal biomarkers **simultaneously and interdependently**. Traditional machine learning models treat samples as independent, ignoring these relationships.
+Parkinson's Disease affects multiple vocal biomarkers **simultaneously and interdependently**. Traditional machine learning models treat samples as independent, ignoring these relationships.
 
 In this challenge, the problem is framed as a **graph learning task**, where:
 
@@ -38,6 +38,8 @@ By leveraging GNNs, participants can model **relational structure** in the data 
 | **Metric** | **Macro F1-Score** (handles class imbalance) |
 | **Dataset** | UCI Parkinson's Dataset with graph structure |
 | **Deadline** | Open-ended (rolling leaderboard) |
+
+---
 
 ### 🎓 Learning Objectives
 
@@ -66,8 +68,8 @@ This challenge covers concepts from **DGL Lectures 1.1-4.6**:
 ### Graph Structure
 - **Nodes**: 195 voice recordings from 31 subjects (23 PD, 8 healthy)
 - **Edges**: K-nearest neighbors (k=5) + subject connections
-- **Training**: 156 nodes (80%) - labels provided
-- **Test**: 39 nodes (20%) - labels hidden
+- **Training**: 156 nodes (80%) — labels provided
+- **Test**: 39 nodes (20%) — labels hidden
 
 ---
 
@@ -95,15 +97,17 @@ cd ..
 
 ### 4. Run Baseline Model
 ```bash
-python encryption\encrypt_submission.py submissions\gcn_submission.csv (it will automatically save it in submissions\encrypted
-```
-### 5. Encrypt
-```bash
 cd starter_code
 python baseline.py
 ```
 
 Expected baseline F1-score: **~0.72-0.78**
+
+### 5. Encrypt Your Submission
+```bash
+python encryption/encrypt_submission.py submissions/your_name.csv
+# Automatically saves to submissions/encrypted/your_name.enc
+```
 
 ---
 
@@ -141,7 +145,9 @@ gnn-parkinsons-challenge/
 ## 📤 Making a Submission
 
 ### Submission Format
+
 CSV with exactly 39 rows:
+
 ```csv
 node_id,prediction
 0,1
@@ -154,10 +160,27 @@ node_id,prediction
 
 1. **Fork this repository**
 2. **Train your model** and generate predictions
-3. **Add your CSV** to `submissions/your_name.csv`
-4. **Create a Pull Request**
-5. **GitHub Actions scores automatically**
-6. **Results posted** as comment and added to leaderboard
+3. **Save your predictions** to `submissions/your_name.csv`
+4. **Encrypt your submission**:
+
+```bash
+python encryption/encrypt_submission.py submissions/your_name.csv
+# Automatically saves the encrypted file to submissions/encrypted/your_name.enc
+```
+
+5. **Add and commit the encrypted file**:
+
+```bash
+git add submissions/encrypted/your_name.enc
+git commit -m "Add my submission"
+git push
+```
+
+6. **Create a Pull Request**
+7. **GitHub Actions scores automatically** — decrypts securely, scores against hidden labels, then deletes everything
+8. **Results posted** as a comment and added to the leaderboard
+
+> ⚠️ **Only submit the `.enc` file** — never commit your raw CSV predictions. The automated pipeline will reject unencrypted submissions.
 
 ---
 
@@ -167,7 +190,7 @@ node_id,prediction
 
 **Why?**
 - ✅ Handles class imbalance
-- ✅ Equal importance to both classes  
+- ✅ Equal importance to both classes
 - ✅ More challenging than accuracy
 - ✅ Better reflects real-world performance
 
@@ -248,15 +271,15 @@ node_id,prediction
 
 ## 📜 License
 
-MIT License - see [LICENSE](LICENSE) file.
+MIT License — see [LICENSE](LICENSE) file.
 
-**Dataset License**: UCI Parkinson's Dataset - CC BY 4.0
+**Dataset License**: UCI Parkinson's Dataset — CC BY 4.0
 
 ---
 
 <div align="center">
 
-### 🚀 Ready to start? 
+### 🚀 Ready to start?
 
 **[View Leaderboard](https://aiikram.github.io/gnn-parkinsons-challenge/leaderboard.html)** | **[Fork Repo](https://github.com/AiIkram/gnn-parkinsons-challenge/fork)** | **[Submit Solution](https://github.com/AiIkram/gnn-parkinsons-challenge/pulls)**
 
