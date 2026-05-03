@@ -88,14 +88,7 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r starter_code/requirements.txt
 ```
 
-### 3. Generate Data
-```bash
-cd scripts
-python generate_graph_data.py
-cd ..
-```
-
-### 4. Run Baseline Model
+### 3. Run Baseline Model
 ```bash
 cd starter_code
 python baseline.py
@@ -103,7 +96,7 @@ python baseline.py
 
 Expected baseline F1-score: **~0.72-0.78**
 
-### 5. Encrypt Your Submission
+### 4. Encrypt Your Submission
 ```bash
 python encryption/encrypt_submission.py submissions/your_name.csv
 # Automatically saves to submissions/encrypted/your_name.enc
