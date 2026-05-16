@@ -1,6 +1,6 @@
 # 🏆 Leaderboard
 
-Last updated: 2026-05-16 17:34:56
+Last updated: 2026-05-16 18:45:17
 
 | Rank | Team | Score | Model | Date |
 |------|------|-------|-------|------|
@@ -21,3 +21,4 @@ Last updated: 2026-05-16 17:34:56
 |  15 | samuelmatia_human | 0.6518 | GNN | 2026-04-01 |
 |  16 | KEMPEGUY_human | 0.5477 | GNN | 2026-04-09 |
 |  17 | AiIkram_claudeopus4.6 | 0.5293 | GNN | 2026-05-16 |
+|  18 | DeepSeek-v4-pro | 0.4265 | GNN | 2026-05-16 |
