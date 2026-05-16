@@ -1,13 +1,13 @@
 # 🏆 Leaderboard
 
-Last updated: 2026-05-16 11:11:28
+Last updated: 2026-05-16 11:38:16
 
 | Rank | Team | Score | Model | Date |
 |------|------|-------|-------|------|
 | 🥇 1 | gururgg_human | 0.9328 | GNN | 2026-04-01 |
 | 🥇 1 | abdksm_human | 0.9328 | GNN | 2026-04-04 |
 | 🥉 3 | emmakowu3579-ui_human | 0.9023 | GNN | 2026-04-01 |
-|  4 | SanaeZR_GPT%.4 | 0.8956 | GNN | 2026-05-16 |
+|  4 | SanaeZR_GPT5.4 | 0.8956 | GNN | 2026-05-16 |
 |  5 | mahatrabelsi1_human | 0.8458 | GNN | 2026-04-01 |
 |  5 | SanaeZR_human | 0.8458 | GNN | 2026-04-04 |
 |  7 | bjayadikary_human | 0.8427 | GNN | 2026-04-01 |
